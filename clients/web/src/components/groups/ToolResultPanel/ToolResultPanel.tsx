@@ -14,7 +14,11 @@ import type {
 } from "@modelcontextprotocol/client";
 import { ContentViewer } from "../../elements/ContentViewer/ContentViewer";
 import { ResourceLink } from "../ResourceLink/ResourceLink";
-import { resultHasResourceLinks } from "./toolResultUtils";
+import {
+  formatStructuredContent,
+  resultHasResourceLinks,
+  resultHasStructuredContent,
+} from "./toolResultUtils";
 
 export interface ToolResultPanelProps {
   result: CallToolResult;
@@ -161,6 +165,26 @@ const ResourceLinksStack = Stack.withProps({
   gap: "sm",
 });
 
+// Section heading shared by "Structured Content" and (when both exist) "Content"
+// — same level as the Resource Links sub-box heading.
+const SectionHeader = Title.withProps({
+  order: 4,
+  size: "h5",
+});
+
+// Schema-validated `structuredContent` sits in a bordered box like Resource
+// Links, but sizes to its content (`flex` unset) so a Resource Links box below
+// still claims the remaining card height.
+const StructuredContentBox = Paper.withProps({
+  withBorder: true,
+  radius: "md",
+  p: "md",
+});
+
+const StructuredContentInner = Stack.withProps({
+  gap: "sm",
+});
+
 // h3 (not h4), size h4: request modals open over the Tools screen with an `h2`
 // `Modal.Title`, so an `h4` here would skip a level (axe `heading-order`);
 // `size="h4"` preserves the visual size.
@@ -204,19 +228,37 @@ function ResourceLinksGroup({
   );
 }
 
+function StructuredContentSection({ data }: { data: unknown }) {
+  const json = formatStructuredContent(data);
+  return (
+    <StructuredContentBox>
+      <StructuredContentInner>
+        <SectionHeader>Structured Content</SectionHeader>
+        <ContentViewer
+          block={{ type: "text", text: json }}
+          mimeType="application/json"
+          copyable
+        />
+      </StructuredContentInner>
+    </StructuredContentBox>
+  );
+}
+
 export function ToolResultPanel({
   result,
   onClear,
   onReadResource,
 }: ToolResultPanelProps) {
-  const segments =
-    result.isError || result.content.length === 0
-      ? []
-      : segmentContent(result.content);
+  const hasStructured = resultHasStructuredContent(result);
+  const hasContentBlocks = !result.isError && result.content.length > 0;
+  const segments = hasContentBlocks ? segmentContent(result.content) : [];
   // Results with a Resource Links box fill the card so the box grows to the
   // available height (and scrolls inside). Plain text/image results keep the
   // scroll-within-card body so a short result doesn't reserve empty height.
   const hasLinks = resultHasResourceLinks(result);
+  // Label the content run only when structured content is also shown, so a
+  // plain text/image result stays unlabeled (matching the prior layout).
+  const showContentLabel = hasStructured && hasContentBlocks;
 
   const segmentNodes = segments.map((segment) => {
     if (segment.kind === "links") {
@@ -244,6 +286,21 @@ export function ToolResultPanel({
     );
   });
 
+  // Content blocks first, then schema-validated structuredContent. The Content
+  // label is a sibling of the segments (not a wrapping Stack) so a Resource
+  // Links box below still receives `flex: 1` from FillStack.
+  const bodyNodes = (
+    <>
+      {showContentLabel && <SectionHeader>Content</SectionHeader>}
+      {hasContentBlocks && segmentNodes}
+      {hasStructured && (
+        <StructuredContentSection data={result.structuredContent} />
+      )}
+    </>
+  );
+
+  const isEmpty = !hasStructured && !hasContentBlocks;
+
   return (
     <PanelStack>
       <HeaderRow>
@@ -261,15 +318,15 @@ export function ToolResultPanel({
               .join("\n")}
           </ErrorAlert>
         </ResultScroll>
-      ) : result.content.length === 0 ? (
+      ) : isEmpty ? (
         <ResultScroll>
           <Text c="dimmed">No results yet</Text>
         </ResultScroll>
       ) : hasLinks ? (
-        <FillStack>{segmentNodes}</FillStack>
+        <FillStack>{bodyNodes}</FillStack>
       ) : (
         <ResultScroll>
-          <ResultStack>{segmentNodes}</ResultStack>
+          <ResultStack>{bodyNodes}</ResultStack>
         </ResultScroll>
       )}
     </PanelStack>
