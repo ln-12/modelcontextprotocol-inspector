@@ -292,6 +292,53 @@ describe("ToolsScreen", () => {
     );
   });
 
+  it("sends data type defaults for untouched required fields", async () => {
+    const requiredTool: Tool = {
+      name: "required-inputs",
+      inputSchema: {
+        type: "object",
+        required: ["text", "count", "enabled", "items", "options"],
+        properties: {
+          text: { type: "string" },
+          count: { type: "integer" },
+          enabled: { type: "boolean" },
+          items: { type: "array" },
+          options: { type: "object" },
+          optional: { type: "string" },
+        },
+      },
+    };
+    const onCallTool = vi.fn();
+    const user = userEvent.setup();
+    renderWithMantine(
+      <ToolsScreen
+        {...baseProps}
+        tools={[requiredTool]}
+        ui={{
+          ...EMPTY_TOOLS_UI,
+          selectedToolName: requiredTool.name,
+          formValues: {},
+        }}
+        onCallTool={onCallTool}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Execute/ }));
+
+    expect(onCallTool).toHaveBeenCalledWith(
+      requiredTool.name,
+      {
+        text: "",
+        count: 0,
+        enabled: false,
+        items: [],
+        options: {},
+      },
+      false,
+      undefined,
+    );
+  });
+
   it("invokes onClearResult when the result close button is clicked", async () => {
     const user = userEvent.setup();
     const onClearResult = vi.fn();

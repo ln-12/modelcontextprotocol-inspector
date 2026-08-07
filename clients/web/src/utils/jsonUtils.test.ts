@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  applyRequiredSchemaDefaults,
   getDataType,
   tryParseJson,
   updateValueAtPath,
@@ -220,6 +221,111 @@ describe("collectSchemaDefaults", () => {
 
   it("returns an empty object when the schema has no properties", () => {
     expect(collectSchemaDefaults({ type: "object" })).toEqual({});
+  });
+});
+
+describe("applyRequiredSchemaDefaults", () => {
+  it("fills missing required fields with their data type defaults", () => {
+    const schema: InspectorFormSchema = {
+      type: "object",
+      required: ["text", "count", "ratio", "enabled", "items", "options"],
+      properties: {
+        text: { type: "string" },
+        count: { type: "integer" },
+        ratio: { type: "number" },
+        enabled: { type: "boolean" },
+        items: { type: "array" },
+        options: { type: "object" },
+        optional: { type: "string" },
+      },
+    };
+
+    expect(applyRequiredSchemaDefaults(schema, {})).toEqual({
+      text: "",
+      count: 0,
+      ratio: 0,
+      enabled: false,
+      items: [],
+      options: {},
+    });
+  });
+
+  it("prefers schema defaults and preserves entered values", () => {
+    const schema: InspectorFormSchema = {
+      type: "object",
+      required: ["mode", "count"],
+      properties: {
+        mode: { type: "string", default: "fast" },
+        count: { type: "integer" },
+      },
+    };
+
+    expect(applyRequiredSchemaDefaults(schema, { count: 7 })).toEqual({
+      mode: "fast",
+      count: 7,
+    });
+  });
+
+  it("fills required fields inside nested objects", () => {
+    const schema: InspectorFormSchema = {
+      type: "object",
+      required: ["config"],
+      properties: {
+        config: {
+          type: "object",
+          required: ["host", "secure"],
+          properties: {
+            host: { type: "string" },
+            secure: { type: "boolean" },
+          },
+        },
+      },
+    };
+
+    expect(
+      applyRequiredSchemaDefaults(schema, { config: { host: "localhost" } }),
+    ).toEqual({
+      config: { host: "localhost", secure: false },
+    });
+    expect(applyRequiredSchemaDefaults(schema, {})).toEqual({
+      config: { host: "", secure: false },
+    });
+  });
+
+  it("uses the first non-null type for union schemas", () => {
+    const schema: InspectorFormSchema = {
+      type: "object",
+      required: ["value", "onlyNull"],
+      properties: {
+        value: { type: ["null", "string"] },
+        onlyNull: { type: "null" },
+      },
+    };
+
+    expect(applyRequiredSchemaDefaults(schema, {})).toEqual({
+      value: "",
+      onlyNull: null,
+    });
+    expect(
+      applyRequiredSchemaDefaults(schema, { value: null, onlyNull: null }),
+    ).toEqual({
+      value: null,
+      onlyNull: null,
+    });
+  });
+
+  it("replaces null for required non-nullable fields", () => {
+    const schema: InspectorFormSchema = {
+      type: "object",
+      required: ["choice"],
+      properties: {
+        choice: { type: "string" },
+      },
+    };
+
+    expect(applyRequiredSchemaDefaults(schema, { choice: null })).toEqual({
+      choice: "",
+    });
   });
 });
 
