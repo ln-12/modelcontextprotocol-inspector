@@ -7,7 +7,11 @@ import {
   waitFor,
 } from "../../../test/renderWithMantine";
 import { ToolResultPanel } from "./ToolResultPanel";
-import { resultHasResourceLinks } from "./toolResultUtils";
+import {
+  formatStructuredContent,
+  resultHasResourceLinks,
+  resultHasStructuredContent,
+} from "./toolResultUtils";
 
 const okResult: CallToolResult = {
   content: [{ type: "text", text: "ok" }],
@@ -20,6 +24,21 @@ const errorResult: CallToolResult = {
 };
 
 const emptyResult: CallToolResult = { content: [] };
+
+const structuredOnlyResult: CallToolResult = {
+  content: [],
+  structuredContent: { temperature: 65, unit: "F", city: "SF" },
+};
+
+const structuredWithContentResult: CallToolResult = {
+  content: [
+    {
+      type: "text",
+      text: "The current weather in SF is 65°F.",
+    },
+  ],
+  structuredContent: { temperature: 65, unit: "F", city: "SF" },
+};
 
 describe("ToolResultPanel", () => {
   it("renders text content blocks", () => {
@@ -40,6 +59,64 @@ describe("ToolResultPanel", () => {
       <ToolResultPanel result={emptyResult} onClear={() => {}} />,
     );
     expect(screen.getByText("No results yet")).toBeInTheDocument();
+  });
+
+  it("renders structuredContent as a JSON section when present alone", () => {
+    renderWithMantine(
+      <ToolResultPanel result={structuredOnlyResult} onClear={() => {}} />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Structured Content" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No results yet")).toBeNull();
+    // Pretty-printed keys from the JSON view.
+    expect(screen.getByText(/"temperature"/)).toBeInTheDocument();
+    expect(screen.getByText(/"unit"/)).toBeInTheDocument();
+    // No unlabeled content run → no "Content" heading.
+    expect(
+      screen.queryByRole("heading", { name: "Content" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("labels both sections when structuredContent and content coexist", () => {
+    renderWithMantine(
+      <ToolResultPanel
+        result={structuredWithContentResult}
+        onClear={() => {}}
+      />,
+    );
+    const contentHeading = screen.getByRole("heading", { name: "Content" });
+    const structuredHeading = screen.getByRole("heading", {
+      name: "Structured Content",
+    });
+    expect(contentHeading).toBeInTheDocument();
+    expect(structuredHeading).toBeInTheDocument();
+    // Content precedes Structured Content in document order.
+    expect(
+      contentHeading.compareDocumentPosition(structuredHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByText("The current weather in SF is 65°F."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/"city"/)).toBeInTheDocument();
+  });
+
+  it("does not show structuredContent on an error result", () => {
+    renderWithMantine(
+      <ToolResultPanel
+        result={{
+          isError: true,
+          content: [{ type: "text", text: "boom" }],
+          structuredContent: { ignored: true },
+        }}
+        onClear={() => {}}
+      />,
+    );
+    expect(screen.getByText("Tool Error")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Structured Content" }),
+    ).not.toBeInTheDocument();
   });
 
   it("groups resource_link blocks in a scrollable Resource Links box", async () => {
@@ -146,6 +223,36 @@ describe("ToolResultPanel", () => {
           ],
         }),
       ).toBe(false);
+    });
+  });
+
+  describe("resultHasStructuredContent", () => {
+    it("is true when structuredContent is present on a success result", () => {
+      expect(resultHasStructuredContent(structuredOnlyResult)).toBe(true);
+      expect(resultHasStructuredContent(structuredWithContentResult)).toBe(
+        true,
+      );
+    });
+
+    it("is false when structuredContent is absent", () => {
+      expect(resultHasStructuredContent(okResult)).toBe(false);
+      expect(resultHasStructuredContent(emptyResult)).toBe(false);
+    });
+
+    it("is false when the result is an error, even with structuredContent", () => {
+      expect(
+        resultHasStructuredContent({
+          isError: true,
+          content: [{ type: "text", text: "boom" }],
+          structuredContent: { ignored: true },
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe("formatStructuredContent", () => {
+    it("pretty-prints an object as JSON", () => {
+      expect(formatStructuredContent({ a: 1 })).toBe('{\n  "a": 1\n}');
     });
   });
 });

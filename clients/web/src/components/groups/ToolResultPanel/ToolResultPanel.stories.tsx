@@ -186,3 +186,40 @@ export const ErrorResult: Story = {
     },
   },
 };
+
+// A tool with an outputSchema returns both human-readable `content` and
+// schema-validated `structuredContent`. The panel shows Content first, then
+// Structured Content (JSON) below.
+export const StructuredContent: Story = {
+  args: {
+    result: {
+      content: [
+        {
+          type: "text",
+          text: "The current weather in San Francisco is 65°F and sunny.",
+        },
+      ],
+      structuredContent: {
+        temperature: 65,
+        unit: "fahrenheit",
+        condition: "sunny",
+        city: "San Francisco",
+      },
+    },
+  },
+};
+
+// Structured content with an empty `content` array — the panel still shows the
+// JSON section (and does not fall through to "No results yet").
+export const StructuredContentOnly: Story = {
+  args: {
+    result: {
+      content: [],
+      structuredContent: {
+        temperature: 65,
+        unit: "fahrenheit",
+        city: "San Francisco",
+      },
+    },
+  },
+};
