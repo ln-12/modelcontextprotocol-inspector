@@ -189,7 +189,7 @@ export const ErrorResult: Story = {
 
 // A tool with an outputSchema returns both human-readable `content` and
 // schema-validated `structuredContent`. The panel shows Content first, then
-// Structured Content (JSON) below.
+// Structured Content (expandable JSON tree) below.
 export const StructuredContent: Story = {
   args: {
     result: {
@@ -203,7 +203,10 @@ export const StructuredContent: Story = {
         temperature: 65,
         unit: "fahrenheit",
         condition: "sunny",
-        city: "San Francisco",
+        location: {
+          city: "San Francisco",
+          coords: { lat: 37.77, lon: -122.42 },
+        },
       },
     },
   },

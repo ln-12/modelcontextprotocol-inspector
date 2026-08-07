@@ -434,6 +434,36 @@ body {
   background-color: var(--mantine-primary-color-light);
 }
 
+/* ── JSON tree node hover (JsonView expandable rows) ────── */
+
+.json-node:hover {
+  background-color: var(--inspector-surface-subtle);
+}
+
+[data-mantine-color-scheme="dark"] .json-node:hover {
+  background-color: var(--inspector-surface-subtle);
+}
+
+/* JsonView http(s) links — inline so the closing quote stays on the last
+   line of the URL; break only inside the href text. */
+.json-url {
+  display: inline;
+  word-break: break-all;
+}
+
+/* Closing quote + copy icon: nowrap keeps them glued to the URL tail. */
+.json-url-suffix {
+  white-space: nowrap;
+  display: inline;
+  margin-left: 0.15em;
+}
+
+.json-url-suffix .mantine-ActionIcon-root {
+  display: inline-flex;
+  vertical-align: baseline;
+  margin-left: 0.15em;
+}
+
 /* ── Filter toggle buttons (Logging / History / Network) ─────────
  *
  * Shared by the FilterToggleButton element, the History list's collapsible

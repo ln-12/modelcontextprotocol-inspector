@@ -1,6 +1,7 @@
 export { ThemeAccordion } from "./Accordion";
 export { ThemeActionIcon } from "./ActionIcon";
 export { ThemeAlert } from "./Alert";
+export { ThemeAnchor } from "./Anchor";
 export { ThemeAppShell } from "./AppShell";
 export { ThemeAutocomplete } from "./Autocomplete";
 export { ThemeBadge } from "./Badge";

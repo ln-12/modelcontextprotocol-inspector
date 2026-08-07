@@ -6,6 +6,7 @@ export const ThemeText = Text.extend({
   // App.css). Auto-assigning the class keeps `className` out of the JSX (#1450).
   classNames: (_theme, props) => {
     if (props.variant === "tabGlow") return { root: "tab-glow" };
+    if (props.variant === "jsonUrlSuffix") return { root: "json-url-suffix" };
     return {};
   },
   styles: (_theme, props) => {

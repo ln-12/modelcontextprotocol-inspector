@@ -62,13 +62,3 @@ export function resultHasResourceLinks(result: CallToolResult): boolean {
 export function resultHasStructuredContent(result: CallToolResult): boolean {
   return !result.isError && result.structuredContent !== undefined;
 }
-
-/**
- * Pretty-print a tool result's `structuredContent` for the Results panel JSON
- * view. `JSON.stringify` is sufficient: the wire value is already a JSON-shaped
- * object (or, on older revisions, a JSON value), not a string that needs
- * re-parsing.
- */
-export function formatStructuredContent(structuredContent: unknown): string {
-  return JSON.stringify(structuredContent, null, 2);
-}

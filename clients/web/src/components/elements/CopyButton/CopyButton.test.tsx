@@ -10,6 +10,13 @@ describe("CopyButton", () => {
     expect(screen.getByText("⎘")).toBeInTheDocument();
   });
 
+  it("uses a custom accessible label when provided", () => {
+    renderWithMantine(<CopyButton value="https://x.test" label="Copy URL" />);
+    expect(
+      screen.getByRole("button", { name: "Copy URL" }),
+    ).toBeInTheDocument();
+  });
+
   it("triggers a click without throwing when clipboard is unavailable", async () => {
     const user = userEvent.setup();
     renderWithMantine(<CopyButton value="hello" />);

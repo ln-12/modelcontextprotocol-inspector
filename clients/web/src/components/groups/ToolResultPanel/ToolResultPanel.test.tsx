@@ -8,7 +8,6 @@ import {
 } from "../../../test/renderWithMantine";
 import { ToolResultPanel } from "./ToolResultPanel";
 import {
-  formatStructuredContent,
   resultHasResourceLinks,
   resultHasStructuredContent,
 } from "./toolResultUtils";
@@ -69,9 +68,9 @@ describe("ToolResultPanel", () => {
       screen.getByRole("heading", { name: "Structured Content" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("No results yet")).toBeNull();
-    // Pretty-printed keys from the JSON view.
-    expect(screen.getByText(/"temperature"/)).toBeInTheDocument();
-    expect(screen.getByText(/"unit"/)).toBeInTheDocument();
+    // Expandable JsonView shows top-level keys by default.
+    expect(screen.getByText("temperature:")).toBeInTheDocument();
+    expect(screen.getByText("unit:")).toBeInTheDocument();
     // No unlabeled content run → no "Content" heading.
     expect(
       screen.queryByRole("heading", { name: "Content" }),
@@ -99,7 +98,28 @@ describe("ToolResultPanel", () => {
     expect(
       screen.getByText("The current weather in SF is 65°F."),
     ).toBeInTheDocument();
-    expect(screen.getByText(/"city"/)).toBeInTheDocument();
+    expect(screen.getByText("city:")).toBeInTheDocument();
+  });
+
+  it("lets nested structuredContent nodes expand and collapse", async () => {
+    const user = userEvent.setup();
+    renderWithMantine(
+      <ToolResultPanel
+        result={{
+          content: [],
+          structuredContent: {
+            location: { city: "SF", unit: "F" },
+            temperature: 65,
+          },
+        }}
+        onClear={() => {}}
+      />,
+    );
+    expect(screen.getByText("temperature:")).toBeInTheDocument();
+    expect(screen.queryByText("city:")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Expand location" }));
+    expect(screen.getByText("city:")).toBeInTheDocument();
+    expect(screen.getByText('"SF"')).toBeInTheDocument();
   });
 
   it("does not show structuredContent on an error result", () => {
@@ -247,12 +267,6 @@ describe("ToolResultPanel", () => {
           structuredContent: { ignored: true },
         }),
       ).toBe(false);
-    });
-  });
-
-  describe("formatStructuredContent", () => {
-    it("pretty-prints an object as JSON", () => {
-      expect(formatStructuredContent({ a: 1 })).toBe('{\n  "a": 1\n}');
     });
   });
 });

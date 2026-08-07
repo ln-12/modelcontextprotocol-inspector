@@ -4,11 +4,20 @@ export const ThemeUnstyledButton = UnstyledButton.extend({
   classNames: (_theme, props) => {
     if (props.variant === "listItem") return { root: "list-item" };
     if (props.variant === "filterToggle") return { root: "filter-toggle" };
+    if (props.variant === "jsonNode") return { root: "json-node" };
     return {};
   },
   styles: (_theme, props) => {
     if (props.variant === "listItem") {
       return { root: { borderRadius: "var(--mantine-radius-md)" } };
+    }
+    if (props.variant === "jsonNode") {
+      return {
+        root: {
+          borderRadius: "var(--mantine-radius-sm)",
+          textAlign: "left" as const,
+        },
+      };
     }
     // `filterToggle` is styled entirely via the `.filter-toggle` rules in
     // App.css (border-radius, the reserved transparent border, the :hover

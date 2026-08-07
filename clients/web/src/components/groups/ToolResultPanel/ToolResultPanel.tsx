@@ -13,9 +13,9 @@ import type {
   ReadResourceResult,
 } from "@modelcontextprotocol/client";
 import { ContentViewer } from "../../elements/ContentViewer/ContentViewer";
+import { JsonView } from "../../elements/JsonView/JsonView";
 import { ResourceLink } from "../ResourceLink/ResourceLink";
 import {
-  formatStructuredContent,
   resultHasResourceLinks,
   resultHasStructuredContent,
 } from "./toolResultUtils";
@@ -229,16 +229,11 @@ function ResourceLinksGroup({
 }
 
 function StructuredContentSection({ data }: { data: unknown }) {
-  const json = formatStructuredContent(data);
   return (
     <StructuredContentBox>
       <StructuredContentInner>
         <SectionHeader>Structured Content</SectionHeader>
-        <ContentViewer
-          block={{ type: "text", text: json }}
-          mimeType="application/json"
-          copyable
-        />
+        <JsonView data={data} />
       </StructuredContentInner>
     </StructuredContentBox>
   );
