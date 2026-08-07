@@ -258,6 +258,20 @@ export const WithRequestMetadata: Story = {
   },
 };
 
+// Tool-definition `_meta` from `tools/list` — expandable JSON below the
+// description (collapsed by default). Distinct from the request-metadata editor.
+export const WithToolMetadata: Story = {
+  args: {
+    tool: {
+      ...createRecordTool,
+      _meta: {
+        ui: { resourceUri: "ui://apps/records", visibility: ["model", "app"] },
+        "acme.dev/owner": "platform",
+      },
+    },
+  },
+};
+
 // Invalid JSON names the problem and blocks Execute rather than failing at the
 // server.
 export const WithInvalidRequestMetadata: Story = {

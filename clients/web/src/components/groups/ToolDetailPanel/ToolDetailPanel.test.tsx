@@ -187,6 +187,74 @@ describe("ToolDetailPanel", () => {
     });
   });
 
+  describe("Tool metadata (_meta)", () => {
+    const toolWithMeta: Tool = {
+      ...titledTool,
+      _meta: {
+        ui: { resourceUri: "ui://apps/demo" },
+        "acme.dev/owner": "platform",
+      },
+    };
+
+    it("is hidden when the tool has no _meta", () => {
+      renderWithMantine(<ToolDetailPanel {...baseProps} tool={titledTool} />);
+      expect(
+        screen.queryByText("Tool metadata (_meta)"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Show tool metadata" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("starts collapsed below the description when _meta is present", () => {
+      renderWithMantine(<ToolDetailPanel {...baseProps} tool={toolWithMeta} />);
+      expect(screen.getByText("Tool metadata (_meta)")).toBeInTheDocument();
+      const toggle = screen.getByRole("button", {
+        name: "Show tool metadata",
+      });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      // Description is still visible above it.
+      expect(
+        screen.getByText("Sends a message to the recipient"),
+      ).toBeInTheDocument();
+    });
+
+    it("expands to show the tool's _meta JSON", async () => {
+      const user = userEvent.setup();
+      renderWithMantine(<ToolDetailPanel {...baseProps} tool={toolWithMeta} />);
+      await user.click(
+        screen.getByRole("button", { name: "Show tool metadata" }),
+      );
+      expect(
+        screen.getByRole("button", { name: "Hide tool metadata" }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText(/"resourceUri"/)).toBeInTheDocument();
+      expect(screen.getByText(/"acme\.dev\/owner"/)).toBeInTheDocument();
+    });
+
+    it("re-collapses when switching to a different tool that also has _meta", async () => {
+      const user = userEvent.setup();
+      const other: Tool = {
+        ...annotatedTool,
+        _meta: { "acme.dev/tier": "internal" },
+      };
+      const { rerender } = renderWithMantine(
+        <ToolDetailPanel {...baseProps} tool={toolWithMeta} />,
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Show tool metadata" }),
+      );
+      expect(
+        screen.getByRole("button", { name: "Hide tool metadata" }),
+      ).toBeInTheDocument();
+
+      rerender(<ToolDetailPanel {...baseProps} tool={other} />);
+      expect(
+        screen.getByRole("button", { name: "Show tool metadata" }),
+      ).toHaveAttribute("aria-expanded", "false");
+    });
+  });
+
   describe("Request metadata editor", () => {
     // The editor mounts expanded whenever `metaText` is non-empty; a collapsed
     // Mantine `Collapse` hides its children from the accessibility tree, so

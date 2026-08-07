@@ -25,6 +25,7 @@ import { toFormSchema } from "../../../utils/jsonUtils";
 import { parseToolCallMeta } from "../../../utils/toolCallMeta";
 import { getMirroredHeaderParams } from "@inspector/core/json/xMcpHeader.js";
 import { AnnotationBadge } from "../../elements/AnnotationBadge/AnnotationBadge";
+import { ContentViewer } from "../../elements/ContentViewer/ContentViewer";
 import { ProgressDisplay } from "../../elements/ProgressDisplay/ProgressDisplay";
 import { SchemaForm } from "../SchemaForm/SchemaForm";
 
@@ -143,6 +144,32 @@ const DescriptionToggle = ActionIcon.withProps({
 const DescriptionText = Text.withProps({
   size: "sm",
   c: "dimmed",
+});
+
+// Read-only tool-definition `_meta` (from `tools/list`), shown below the
+// description when present. Distinct from the per-call "Request metadata"
+// editor further down — this is what the server declared on the tool itself.
+const ToolMetaSection = Stack.withProps({
+  gap: "xs",
+});
+
+const ToolMetaHeaderRow = Group.withProps({
+  gap: "xs",
+  wrap: "nowrap",
+  align: "center",
+  miw: 0,
+});
+
+const ToolMetaTitle = Text.withProps({
+  size: "sm",
+  fw: 600,
+  flex: 1,
+});
+
+const ToolMetaToggle = ActionIcon.withProps({
+  variant: "subtle",
+  color: "gray",
+  size: "sm",
 });
 
 const CancelButton = Button.withProps({
@@ -279,13 +306,16 @@ export function ToolDetailPanel({
   onExecute,
   onCancel,
 }: ToolDetailPanelProps) {
-  const { name, title, description, icons, annotations, inputSchema } = tool;
+  const { name, title, description, icons, annotations, inputSchema, _meta } =
+    tool;
   // Narrow the SDK protocol schema to the form renderer's schema type.
   const formSchema = toFormSchema(inputSchema) ?? {};
   const iconSrc = icons?.[0]?.src;
   // SEP-2243: args this tool declares as `x-mcp-header` — their values mirror
   // into `Mcp-Param-{Name}` headers on a `tools/call` (#1632).
   const mirroredParams = getMirroredHeaderParams(tool);
+  const hasToolMeta = _meta !== undefined;
+  const toolMetaJson = hasToolMeta ? JSON.stringify(_meta, null, 2) : undefined;
 
   // Descriptions are shown by default (most are short); the chevron lets the
   // user hide a long one to keep the form and Execute footer in view. Reset to
@@ -293,6 +323,9 @@ export function ToolDetailPanel({
   // a prior tool's hidden state doesn't carry over — mirrors how ToolsScreen
   // clears formValues on change.
   const [descriptionOpen, setDescriptionOpen] = useState(true);
+  // Tool-definition `_meta` starts collapsed — it's inspection-only and often
+  // long (e.g. MCP Apps `ui` blocks).
+  const [toolMetaOpen, setToolMetaOpen] = useState(false);
   // The `_meta` editor starts open only when it already holds something (a
   // session restored mid-flow), so it stays out of the way otherwise.
   const [metaOpen, setMetaOpen] = useState(() => metaText.trim() !== "");
@@ -300,11 +333,13 @@ export function ToolDetailPanel({
   if (name !== prevToolName) {
     setPrevToolName(name);
     setDescriptionOpen(true);
+    setToolMetaOpen(false);
     setMetaOpen(metaText.trim() !== "");
   }
   // Ties the toggle to the Collapse region so assistive tech announces it as a
   // single expandable control (aria-expanded + aria-controls).
   const descriptionRegionId = useId();
+  const toolMetaRegionId = useId();
   const metaRegionId = useId();
 
   // Parsed on every render rather than on submit, so an invalid `_meta` blocks
@@ -381,6 +416,31 @@ export function ToolDetailPanel({
             <Collapse in={descriptionOpen} id={descriptionRegionId}>
               <DescriptionText>{description}</DescriptionText>
             </Collapse>
+          )}
+
+          {hasToolMeta && toolMetaJson !== undefined && (
+            <ToolMetaSection>
+              <ToolMetaHeaderRow>
+                <ToolMetaTitle>Tool metadata (_meta)</ToolMetaTitle>
+                <ToolMetaToggle
+                  aria-label={
+                    toolMetaOpen ? "Hide tool metadata" : "Show tool metadata"
+                  }
+                  aria-expanded={toolMetaOpen}
+                  aria-controls={toolMetaRegionId}
+                  onClick={() => setToolMetaOpen((open) => !open)}
+                >
+                  {toolMetaOpen ? <RiArrowDownSLine /> : <RiArrowRightSLine />}
+                </ToolMetaToggle>
+              </ToolMetaHeaderRow>
+              <Collapse in={toolMetaOpen} id={toolMetaRegionId}>
+                <ContentViewer
+                  block={{ type: "text", text: toolMetaJson }}
+                  mimeType="application/json"
+                  copyable
+                />
+              </Collapse>
+            </ToolMetaSection>
           )}
 
           <Divider />
