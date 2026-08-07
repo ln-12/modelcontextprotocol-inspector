@@ -71,7 +71,8 @@
     "smoke:launcher": "node scripts/smoke-launcher.mjs",
     "pack:verify": "node scripts/pack-and-verify.mjs",
     "prepack": "npm run build",
-    "postinstall": "node scripts/install-clients.mjs"
+    "postinstall": "node scripts/install-clients.mjs",
+    "prepare": "node scripts/prepare-build.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.12",

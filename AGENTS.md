@@ -93,7 +93,12 @@ v2/main/
 │                                       #   mcp-app-review.md, launcher-config-consolidation-plan.md,
 │                                       #   images/). Linked from the root README.
 ├── scripts/                            # Root build/verify tooling: install-clients.mjs (the
-│                                       #   postinstall cascade), the smoke-*.mjs runners,
+│                                       #   postinstall cascade), prepare-build.mjs (the
+│                                       #   `prepare` hook that builds the clients when their
+│                                       #   output is missing — what makes an `npx github:…`
+│                                       #   install work, since that path runs neither
+│                                       #   `prepack` nor `postinstall`),
+│                                       #   the smoke-*.mjs runners,
 │                                       #   verify-build-gate / verify-format-coverage /
 │                                       #   verify-typecheck-coverage, pack-and-verify.mjs,
 │                                       #   and lib/ shared helpers. Prettier-gated via
@@ -110,6 +115,8 @@ v2 is **not** an npm workspace — each client under `clients/*` keeps its own `
 - **Fresh clone / first-time setup:** run `npm install` at the repo root.
 - **After a pull that changes a client's dependencies:** re-run `npm install` at the root to re-sync every client (the `postinstall` cascade handles it).
 - The cascade is dev-only: it exits early when the package is installed under `node_modules`, and the published tarball ships only each client's `build/`, so end users are unaffected. Set `INSPECTOR_SKIP_CLIENT_INSTALL=1` to skip it.
+
+The root **`prepare`** script (`scripts/install-clients.mjs`'s sibling, `scripts/prepare-build.mjs`) then builds the clients, but only when their build output is missing — so it runs once on a fresh clone and no-ops afterwards. It exists for the **install-from-source** path (`npx github:<owner>/inspector`, `npm i <git-url>`, `npm i <path>`), which runs **neither** `prepack` (so nothing builds the bundles the `files` allowlist ships) **nor** `postinstall` (npm installs the clone with `--ignore-scripts`, so the client cascade never fires) — npm's git fetcher runs `prepare` and only `prepare`. Without it, that install produced a three-file tarball with no `clients/launcher/build/index.js` and failed with `mcp-inspector: command not found`. Set `INSPECTOR_SKIP_PREPARE_BUILD=1` to skip it; the CI workflow does, on both `npm install` steps, because `validate` / `pack:verify` / `prepack` build anyway. Don't turn `prepare` into a bare `npm run build`: it also runs during `npm pack`, right after `prepack` has already built.
 
 After installing, `npm run build` builds all clients. The launcher scripts (`npm run web` / `web:dev`) run the built launcher, so build first; for day-to-day web iteration use `cd clients/web && npm run dev`.
 

@@ -35,6 +35,13 @@ jobs:
         # The root postinstall (scripts/install-clients.mjs) cascades
         # `npm install` into clients/web, clients/cli, clients/tui, and
         # clients/launcher, so this single step sets up every client.
+        #
+        # The root `prepare` (scripts/prepare-build.mjs) would also build every
+        # client here, since a fresh runner has no build output — that build
+        # exists for the git-install path (`npx github:…`), which never runs
+        # `prepack`. `validate` below builds anyway, so skip the duplicate.
+        env:
+          INSPECTOR_SKIP_PREPARE_BUILD: '1'
         run: npm install
 
       - name: Validate (coverage guards, format, lint, typecheck, build, fast tests)
@@ -160,6 +167,10 @@ jobs:
         run: npm install -g npm@^11.5.1
 
       - name: Install dependencies (root + all clients)
+        # `pack:verify` and `prepack` below each do their own clean-tree build,
+        # so skip the `prepare` build (see the note on the build job's install).
+        env:
+          INSPECTOR_SKIP_PREPARE_BUILD: '1'
         run: npm install
 
       - name: Verify the publishable tarball end to end

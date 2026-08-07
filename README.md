@@ -66,6 +66,14 @@ npm install     # root install; postinstall cascades into every client
 
 The cascade (`scripts/install-clients.mjs`) is dev-only — it exits early when the package is installed as a dependency, and the published tarball ships only each client's `build/`, so end users are unaffected. Set `INSPECTOR_SKIP_CLIENT_INSTALL=1` to skip it.
 
+A root `prepare` script (`scripts/prepare-build.mjs`) then builds the clients, but **only when their build output is missing** — so it runs once on a fresh clone and no-ops on every later `npm install`. Set `INSPECTOR_SKIP_PREPARE_BUILD=1` to skip it (CI does, since `npm run validate` builds anyway). See [Installing from the repo](#installing-from-the-repo) for why it exists.
+
+### Installing from the repo
+
+`npx github:<owner>/inspector` (or `npm install <git-url>` / `npm install <path>`) installs from source rather than from the registry. That path never runs `prepack`, which is what builds the client bundles for a published tarball — npm's git fetcher only runs **`prepare`**. Without one, npm packs the `files` allowlist against an unbuilt tree, ships a tarball with no `clients/launcher/build/index.js`, and the install "succeeds" straight into `mcp-inspector: command not found`.
+
+`scripts/prepare-build.mjs` is that `prepare` hook. Because npm installs the clone with `--ignore-scripts`, the root `postinstall` cascade never fires there either, so the script runs it itself before building. Installing from a git URL therefore takes a full build (a minute or so) rather than an unpack — for a plain install, prefer the published package.
+
 ## Running during development
 
 For day-to-day web iteration, run Vite directly from the web client (fast HMR, no launcher build needed):
