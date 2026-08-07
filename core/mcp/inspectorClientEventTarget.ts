@@ -41,7 +41,7 @@ import type {
 } from "@modelcontextprotocol/client";
 import type { SamplingCreateMessage } from "./samplingCreateMessage.js";
 import type { ElicitationCreateMessage } from "./elicitationCreateMessage.js";
-import type { JsonValue } from "../json/jsonUtils.js";
+import type { JsonObject, JsonValue } from "../json/jsonUtils.js";
 import type { OAuthTokens } from "@modelcontextprotocol/client";
 import type { AuthChallenge } from "../auth/challenge.js";
 
@@ -96,7 +96,8 @@ export interface InspectorClientEventMap {
     timestamp: Date;
     success: boolean;
     error?: string;
-    metadata?: Record<string, string>;
+    /** The `_meta` sent with the call — any JSON, see `ToolCallInvocation`. */
+    metadata?: JsonObject;
     /** Non-fatal outputSchema mismatch detected on the skipOutputValidation path. */
     outputValidationError?: string;
   };

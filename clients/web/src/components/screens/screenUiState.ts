@@ -18,6 +18,7 @@ import { ALL_CATEGORIES_VISIBLE } from "./NetworkScreen/fetchCategories";
 export const EMPTY_TOOLS_UI: ToolsUiState = {
   selectedToolName: undefined,
   formValues: {},
+  metaText: "",
   search: "",
   runAsTask: false,
 };

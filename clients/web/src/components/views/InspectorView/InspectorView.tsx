@@ -104,6 +104,7 @@ import {
 } from "../../../utils/correlateTransportErrors";
 import { collectSchemaDefaults, toFormSchema } from "../../../utils/jsonUtils";
 import { MONITOR_COLUMN_ANIM_MS } from "./monitorColumnAnimation";
+import type { JsonObject } from "@inspector/core/json/jsonUtils.js";
 
 const SORT_DEFAULT: SortDirection = "newest-first";
 
@@ -522,6 +523,7 @@ export interface InspectorViewProps {
     name: string,
     args: Record<string, unknown>,
     runAsTask?: boolean,
+    meta?: JsonObject,
   ) => void;
   onCancelToolCall?: () => void;
   onClearToolResult?: () => void;

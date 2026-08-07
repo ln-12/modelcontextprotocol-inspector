@@ -43,7 +43,7 @@ export type {
 } from "./types.js";
 
 // Re-export JSON utilities
-export type { JsonValue } from "../json/jsonUtils.js";
+export type { JsonObject, JsonValue } from "../json/jsonUtils.js";
 export {
   convertParameterValue,
   convertToolParameters,

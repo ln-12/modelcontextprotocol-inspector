@@ -63,6 +63,8 @@ const baseProps = {
   runAsTask: false,
   onRunAsTaskChange: vi.fn(),
   onFormChange: vi.fn(),
+  metaText: "",
+  onMetaTextChange: vi.fn(),
   onExecute: vi.fn(),
   onCancel: vi.fn(),
 };
@@ -182,6 +184,153 @@ describe("ToolDetailPanel", () => {
       expect(
         screen.queryByRole("button", { name: "Hide description" }),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Request metadata editor", () => {
+    // The editor mounts expanded whenever `metaText` is non-empty; a collapsed
+    // Mantine `Collapse` hides its children from the accessibility tree, so
+    // tests that touch the input seed a non-empty value rather than clicking
+    // the toggle (whose open animation is rAF-driven).
+    const metaInput = () =>
+      screen.getByRole("textbox", { name: "Tool call metadata JSON" });
+
+    it("starts collapsed when there is no metadata yet", () => {
+      renderWithMantine(<ToolDetailPanel {...baseProps} tool={simpleTool} />);
+      expect(
+        screen.getByRole("button", { name: "Show metadata" }),
+      ).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("starts expanded when metadata was already entered", () => {
+      renderWithMantine(
+        <ToolDetailPanel {...baseProps} tool={simpleTool} metaText='{"a":1}' />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Hide metadata" }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(metaInput()).toHaveValue('{"a":1}');
+    });
+
+    it("wires the toggle to the editor region (aria-controls)", () => {
+      renderWithMantine(
+        <ToolDetailPanel {...baseProps} tool={simpleTool} metaText='{"a":1}' />,
+      );
+      const toggle = screen.getByRole("button", { name: "Hide metadata" });
+      const regionId = toggle.getAttribute("aria-controls");
+      expect(regionId).toBeTruthy();
+      expect(document.getElementById(regionId as string)).toContainElement(
+        metaInput(),
+      );
+    });
+
+    it("collapses the editor when the toggle is clicked", async () => {
+      const user = userEvent.setup();
+      renderWithMantine(
+        <ToolDetailPanel {...baseProps} tool={simpleTool} metaText='{"a":1}' />,
+      );
+      await user.click(screen.getByRole("button", { name: "Hide metadata" }));
+      expect(
+        screen.getByRole("button", { name: "Show metadata" }),
+      ).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("re-collapses when switching to a different tool", async () => {
+      const user = userEvent.setup();
+      const { rerender } = renderWithMantine(
+        <ToolDetailPanel {...baseProps} tool={titledTool} />,
+      );
+      await user.click(screen.getByRole("button", { name: "Show metadata" }));
+      expect(
+        screen.getByRole("button", { name: "Hide metadata" }),
+      ).toBeInTheDocument();
+
+      rerender(<ToolDetailPanel {...baseProps} tool={annotatedTool} />);
+      expect(
+        screen.getByRole("button", { name: "Show metadata" }),
+      ).toBeInTheDocument();
+    });
+
+    it("reports keystrokes to the parent", async () => {
+      const user = userEvent.setup();
+      const onMetaTextChange = vi.fn();
+      renderWithMantine(
+        <ToolDetailPanel
+          {...baseProps}
+          tool={simpleTool}
+          metaText="{}"
+          onMetaTextChange={onMetaTextChange}
+        />,
+      );
+      await user.type(metaInput(), "x");
+      expect(onMetaTextChange).toHaveBeenCalledWith("{}x");
+    });
+
+    it("passes the parsed metadata to onExecute", async () => {
+      const user = userEvent.setup();
+      const onExecute = vi.fn();
+      renderWithMantine(
+        <ToolDetailPanel
+          {...baseProps}
+          tool={simpleTool}
+          metaText='{"acme.dev/trace":{"id":7}}'
+          onExecute={onExecute}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: "Execute Tool" }));
+      expect(onExecute).toHaveBeenCalledWith(false, {
+        "acme.dev/trace": { id: 7 },
+      });
+    });
+
+    it("passes undefined metadata when the editor is empty", async () => {
+      const user = userEvent.setup();
+      const onExecute = vi.fn();
+      renderWithMantine(
+        <ToolDetailPanel
+          {...baseProps}
+          tool={simpleTool}
+          onExecute={onExecute}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: "Execute Tool" }));
+      expect(onExecute).toHaveBeenCalledWith(false, undefined);
+    });
+
+    it("blocks Execute and shows the reason for invalid JSON", () => {
+      renderWithMantine(
+        <ToolDetailPanel {...baseProps} tool={simpleTool} metaText="{ oops" />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Execute Tool" }),
+      ).toBeDisabled();
+      expect(metaInput()).toHaveAttribute("aria-invalid", "true");
+    });
+
+    it("blocks Execute when the JSON is valid but not an object", () => {
+      renderWithMantine(
+        <ToolDetailPanel {...baseProps} tool={simpleTool} metaText="[1,2]" />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Execute Tool" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText(
+          'Metadata must be a JSON object, e.g. { "key": "value" }',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("disables the editor while a call is in flight", () => {
+      renderWithMantine(
+        <ToolDetailPanel
+          {...baseProps}
+          tool={simpleTool}
+          metaText='{"a":1}'
+          isExecuting={true}
+        />,
+      );
+      expect(metaInput()).toBeDisabled();
     });
   });
 
@@ -358,7 +507,7 @@ describe("ToolDetailPanel", () => {
       // The toggle is checked (user's choice), and executing forwards true.
       expect(screen.getByLabelText("Run as task")).toBeChecked();
       await user.click(screen.getByRole("button", { name: "Execute Tool" }));
-      expect(onExecute).toHaveBeenCalledWith(true);
+      expect(onExecute).toHaveBeenCalledWith(true, undefined);
     });
 
     it("shows an unchecked, enabled toggle for an optional tool (off by default)", () => {
@@ -431,7 +580,7 @@ describe("ToolDetailPanel", () => {
         />,
       );
       await user.click(screen.getByRole("button", { name: "Execute Tool" }));
-      expect(onExecute).toHaveBeenCalledWith(true);
+      expect(onExecute).toHaveBeenCalledWith(true, undefined);
     });
 
     it("passes runAsTask=true to onExecute for a required tool regardless of the prop", async () => {
@@ -447,7 +596,7 @@ describe("ToolDetailPanel", () => {
         />,
       );
       await user.click(screen.getByRole("button", { name: "Execute Tool" }));
-      expect(onExecute).toHaveBeenCalledWith(true);
+      expect(onExecute).toHaveBeenCalledWith(true, undefined);
     });
 
     it("gates onExecute to false when the server lacks task-tool-call support, even with a stale runAsTask", async () => {
@@ -466,7 +615,7 @@ describe("ToolDetailPanel", () => {
       );
       expect(screen.queryByLabelText("Run as task")).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Execute Tool" }));
-      expect(onExecute).toHaveBeenCalledWith(false);
+      expect(onExecute).toHaveBeenCalledWith(false, undefined);
     });
   });
 

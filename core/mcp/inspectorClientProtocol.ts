@@ -36,7 +36,7 @@ import type {
   Task,
   Tool,
 } from "@modelcontextprotocol/client";
-import type { JsonValue } from "../json/jsonUtils.js";
+import type { JsonObject, JsonValue } from "../json/jsonUtils.js";
 import type { InspectorClientEventTarget } from "./inspectorClientEventTarget.js";
 import type { SamplingCreateMessage } from "./samplingCreateMessage.js";
 import type { ElicitationCreateMessage } from "./elicitationCreateMessage.js";
@@ -132,8 +132,8 @@ export interface InspectorClientProtocol extends InspectorClientEventTarget {
   callTool(
     tool: Tool,
     args: Record<string, JsonValue>,
-    generalMetadata?: Record<string, string>,
-    toolSpecificMetadata?: Record<string, string>,
+    generalMetadata?: JsonObject,
+    toolSpecificMetadata?: JsonObject,
   ): Promise<ToolCallInvocation>;
   readResource(
     uri: string,

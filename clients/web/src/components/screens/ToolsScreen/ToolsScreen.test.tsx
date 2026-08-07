@@ -101,7 +101,68 @@ describe("ToolsScreen", () => {
     await user.clear(field);
     await user.type(field, "slow");
     await user.click(screen.getByRole("button", { name: /Execute/ }));
-    expect(onCallTool).toHaveBeenCalledWith("gamma", { mode: "slow" }, false);
+    expect(onCallTool).toHaveBeenCalledWith(
+      "gamma",
+      { mode: "slow" },
+      false,
+      undefined,
+    );
+  });
+
+  it("carries the per-call metadata through to Execute", async () => {
+    const user = userEvent.setup();
+    const onCallTool = vi.fn();
+    renderWithMantine(
+      <ControlledToolsScreen
+        onCallTool={onCallTool}
+        ui={{
+          ...EMPTY_TOOLS_UI,
+          selectedToolName: "alpha",
+          metaText: '{"tenant":"acme"}',
+        }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Execute/ }));
+    expect(onCallTool).toHaveBeenCalledWith("alpha", {}, false, {
+      tenant: "acme",
+    });
+  });
+
+  it("keeps edits to the metadata editor in the lifted UI state", async () => {
+    const user = userEvent.setup();
+    const onUiChange = vi.fn();
+    renderWithMantine(
+      <ControlledToolsScreen
+        onUiChange={onUiChange}
+        ui={{ ...EMPTY_TOOLS_UI, selectedToolName: "alpha", metaText: "{}" }}
+      />,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Tool call metadata JSON" }),
+      "x",
+    );
+    expect(onUiChange).toHaveBeenCalledWith(
+      expect.objectContaining({ metaText: "{}x" }),
+    );
+  });
+
+  it("clears the metadata editor when a different tool is selected", async () => {
+    const user = userEvent.setup();
+    const onUiChange = vi.fn();
+    renderWithMantine(
+      <ControlledToolsScreen
+        onUiChange={onUiChange}
+        ui={{
+          ...EMPTY_TOOLS_UI,
+          selectedToolName: "alpha",
+          metaText: '{"a":1}',
+        }}
+      />,
+    );
+    await user.click(screen.getByText("beta"));
+    expect(onUiChange).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedToolName: "beta", metaText: "" }),
+    );
   });
 
   it("shows the result in place of the form when a selected tool has a result", () => {
@@ -212,7 +273,7 @@ describe("ToolsScreen", () => {
     renderWithMantine(<ControlledToolsScreen onCallTool={onCallTool} />);
     await user.click(screen.getByText("alpha"));
     await user.click(screen.getByRole("button", { name: /Execute/ }));
-    expect(onCallTool).toHaveBeenCalledWith("alpha", {}, false);
+    expect(onCallTool).toHaveBeenCalledWith("alpha", {}, false, undefined);
   });
 
   it("seeds schema defaults so untouched fields are sent on Execute", async () => {
@@ -222,7 +283,12 @@ describe("ToolsScreen", () => {
     await user.click(screen.getByText("gamma"));
     // Execute without editing the form: the default must still be sent.
     await user.click(screen.getByRole("button", { name: /Execute/ }));
-    expect(onCallTool).toHaveBeenCalledWith("gamma", { mode: "fast" }, false);
+    expect(onCallTool).toHaveBeenCalledWith(
+      "gamma",
+      { mode: "fast" },
+      false,
+      undefined,
+    );
   });
 
   it("invokes onClearResult when the result close button is clicked", async () => {

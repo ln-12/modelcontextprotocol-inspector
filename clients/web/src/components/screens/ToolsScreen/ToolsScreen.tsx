@@ -5,6 +5,7 @@ import type {
   Tool,
 } from "@modelcontextprotocol/client";
 import type { ExcludedTool } from "@inspector/core/mcp/types.js";
+import type { JsonObject } from "@inspector/core/json/jsonUtils.js";
 import { ToolControls } from "../../groups/ToolControls/ToolControls";
 import type { ListPaginationControlsProps } from "../../elements/ListPaginationControls/ListPaginationControls";
 import {
@@ -36,6 +37,13 @@ export interface ToolCallState {
 export interface ToolsUiState {
   selectedToolName?: string;
   formValues: Record<string, unknown>;
+  /**
+   * Raw text of the per-call `_meta` editor, cleared when a different tool is
+   * selected (like `formValues`) since metadata is usually tool-specific.
+   * Optional: an OAuth-resume snapshot taken before this field existed restores
+   * without it.
+   */
+  metaText?: string;
   search: string;
   // Screen-level "Run as task" toggle, shared across tools (not per-tool):
   // selecting a different tool keeps the current value. Persists across tab
@@ -66,6 +74,7 @@ export interface ToolsScreenProps {
     name: string,
     args: Record<string, unknown>,
     runAsTask?: boolean,
+    meta?: JsonObject,
   ) => void;
   onCancelCall?: () => void;
   onClearResult?: () => void;
@@ -158,7 +167,7 @@ export function ToolsScreen({
   onClearResult,
   onReadResource,
 }: ToolsScreenProps) {
-  const { selectedToolName, formValues, search } = ui;
+  const { selectedToolName, formValues, metaText = "", search } = ui;
   const selectedTool = selectedToolName
     ? tools.find((t) => t.name === selectedToolName)
     : undefined;
@@ -178,7 +187,12 @@ export function ToolsScreen({
       nextFormValues = collectSchemaDefaults(
         toFormSchema(tool.inputSchema) ?? {},
       );
-    onUiChange({ ...ui, selectedToolName: name, formValues: nextFormValues });
+    onUiChange({
+      ...ui,
+      selectedToolName: name,
+      formValues: nextFormValues,
+      metaText: "",
+    });
   };
 
   return (
@@ -252,8 +266,12 @@ export function ToolsScreen({
               onFormChange={(values) =>
                 onUiChange({ ...ui, formValues: values })
               }
-              onExecute={(runAsTask) =>
-                onCallTool(selectedTool.name, formValues, runAsTask)
+              metaText={metaText}
+              onMetaTextChange={(value) =>
+                onUiChange({ ...ui, metaText: value })
+              }
+              onExecute={(runAsTask, meta) =>
+                onCallTool(selectedTool.name, formValues, runAsTask, meta)
               }
               onCancel={() => onCancelCall?.()}
             />

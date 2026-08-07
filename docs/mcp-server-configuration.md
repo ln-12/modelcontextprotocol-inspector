@@ -162,7 +162,7 @@ These have no analog in the broader `mcp.json` ecosystem. Each is **omitted on w
 | `protocolEra`                          | `"legacy"` | `"legacy"` \| `"auto"` \| `"modern"` — which protocol era to negotiate, orthogonal to the transport |
 | `modernLogLevel`                       | `"debug"`  | Per-request log level stamped on modern connections, or `"off"`. Legacy connections ignore it       |
 | `roots`                                | —          | Roots advertised via the `roots` client capability; each is `{ uri, name? }`                        |
-| `metadata`                             | —          | Default `_meta` keys merged into every outgoing request                                             |
+| `metadata`                             | —          | Default `_meta` keys (string values) merged into every outgoing request. The Tools tab's per-call metadata editor layers on top of these and wins on key collision |
 | `connectionTimeout` / `requestTimeout` | —          | Timeouts in ms                                                                                      |
 | `taskTtl`                              | `60000`    | TTL in ms for tasks created via "Run as task" (`DEFAULT_TASK_TTL_MS`)                               |
 | `autoRefreshOnListChanged`             | `false`    | Refresh lists automatically on `*/list_changed` instead of only flagging the indicator              |
