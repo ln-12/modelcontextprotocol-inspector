@@ -16,6 +16,7 @@ import { ToolResultPanel } from "../../groups/ToolResultPanel/ToolResultPanel";
 import { ToolCallErrorPanel } from "../../groups/ToolResultPanel/ToolCallErrorPanel";
 import { resultHasResourceLinks } from "../../groups/ToolResultPanel/toolResultUtils";
 import {
+  applyRequiredSchemaDefaults,
   collectSchemaDefaults,
   toFormSchema,
   type InspectorFormSchema,
@@ -333,9 +334,13 @@ export function ToolsScreen({
                 onUiChange({ ...ui, metaText: value });
               }}
               onResetInputs={() => handleResetInputs(selectedTool)}
-              onExecute={(runAsTask, meta) =>
-                onCallTool(selectedTool.name, formValues, runAsTask, meta)
-              }
+              onExecute={(runAsTask, meta) => {
+                const args = applyRequiredSchemaDefaults(
+                  formSchemaOf(selectedTool),
+                  formValues,
+                );
+                onCallTool(selectedTool.name, args, runAsTask, meta);
+              }}
               onCancel={() => onCancelCall?.()}
             />
           </ContentCard>

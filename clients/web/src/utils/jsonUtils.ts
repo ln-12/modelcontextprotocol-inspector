@@ -129,6 +129,90 @@ export function collectSchemaDefaults(
   return result;
 }
 
+function dataTypeDefault(schema: InspectorFormSchema): unknown {
+  const type = Array.isArray(schema.type)
+    ? schema.type.find((candidate) => candidate !== "null")
+    : schema.type;
+  switch (type) {
+    case "string":
+      return "";
+    case "number":
+    case "integer":
+      return 0;
+    case "boolean":
+      return false;
+    case "array":
+      return [];
+    case "object":
+      return {};
+    case "null":
+      return null;
+    default:
+      return undefined;
+  }
+}
+
+function permitsNull(schema: InspectorFormSchema): boolean {
+  return (
+    schema.nullable === true ||
+    schema.type === "null" ||
+    (Array.isArray(schema.type) && schema.type.includes("null"))
+  );
+}
+
+/**
+ * Fill absent required properties with their schema default, or with the
+ * property's JSON data-type default when the schema declares no default.
+ * Existing values always win, and nested objects are handled recursively.
+ */
+export function applyRequiredSchemaDefaults(
+  schema: InspectorFormSchema,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = { ...values };
+  const required = new Set(schema.required ?? []);
+
+  for (const [fieldName, fieldSchema] of Object.entries(
+    schema.properties ?? {},
+  )) {
+    const current = result[fieldName];
+    if (
+      fieldSchema.type === "object" &&
+      current !== null &&
+      typeof current === "object" &&
+      !Array.isArray(current)
+    ) {
+      result[fieldName] = applyRequiredSchemaDefaults(
+        fieldSchema,
+        current as Record<string, unknown>,
+      );
+      continue;
+    }
+    const isMissing =
+      current === undefined || (current === null && !permitsNull(fieldSchema));
+    if (!required.has(fieldName) || !isMissing) continue;
+
+    let fallback =
+      fieldSchema.default !== undefined
+        ? fieldSchema.default
+        : dataTypeDefault(fieldSchema);
+    if (
+      fieldSchema.type === "object" &&
+      fallback !== null &&
+      typeof fallback === "object" &&
+      !Array.isArray(fallback)
+    ) {
+      fallback = applyRequiredSchemaDefaults(
+        fieldSchema,
+        fallback as Record<string, unknown>,
+      );
+    }
+    if (fallback !== undefined) result[fieldName] = fallback;
+  }
+
+  return result;
+}
+
 /**
  * Whether any of the schema's required top-level fields is missing a value in
  * `values` (absent, null, or empty string). Used to gate a form's submit
