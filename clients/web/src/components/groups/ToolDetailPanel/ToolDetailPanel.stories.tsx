@@ -272,3 +272,19 @@ export const WithInvalidRequestMetadata: Story = {
     ).toBeDisabled();
   },
 };
+
+// Inputs are remembered per server and per tool, so the panel offers a way back
+// to the schema's defaults. The control only appears when a handler is given.
+export const WithResetInputs: Story = {
+  args: {
+    tool: sendMessageTool,
+    formValues: { message: "remembered from a previous session" },
+    metaText: '{ "acme.dev/tenant": "internal" }',
+    onResetInputs: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Reset inputs" }));
+    await expect(args.onResetInputs).toHaveBeenCalled();
+  },
+};

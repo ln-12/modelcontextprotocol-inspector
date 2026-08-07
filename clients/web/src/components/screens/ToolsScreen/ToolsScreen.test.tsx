@@ -10,6 +10,7 @@ import {
   type ToolsUiState,
 } from "./ToolsScreen";
 import { EMPTY_TOOLS_UI } from "../screenUiState";
+import { loadToolInput, saveToolInput } from "../../../lib/toolInputStore";
 
 const tools: Tool[] = [
   { name: "alpha", inputSchema: { type: "object" } },
@@ -414,6 +415,99 @@ describe("ToolsScreen", () => {
     expect(screen.getByText("Unknown Tool")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close error" }));
     expect(onClearResult).toHaveBeenCalledTimes(1);
+  });
+
+  it("remembers edited form values for the selected tool", async () => {
+    const user = userEvent.setup();
+    renderWithMantine(<ControlledToolsScreen serverId="demo" />);
+    await user.click(screen.getByText("gamma"));
+    const field = screen.getByLabelText(/mode/i);
+    await user.clear(field);
+    await user.type(field, "slow");
+    expect(loadToolInput("demo", "gamma")?.formValues).toEqual({
+      mode: "slow",
+    });
+  });
+
+  it("remembers the per-call metadata for the selected tool", async () => {
+    const user = userEvent.setup();
+    renderWithMantine(
+      <ControlledToolsScreen
+        serverId="demo"
+        ui={{ ...EMPTY_TOOLS_UI, selectedToolName: "alpha", metaText: "{}" }}
+      />,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Tool call metadata JSON" }),
+      "x",
+    );
+    expect(loadToolInput("demo", "alpha")?.metaText).toBe("{}x");
+  });
+
+  it("restores remembered inputs when the tool is selected again", async () => {
+    // The reconnect case: App resets its UI state, so the values have to come
+    // back from storage on the next selection rather than from memory.
+    saveToolInput("demo", "gamma", {
+      formValues: { mode: "slow" },
+      metaText: '{"tenant":"acme"}',
+    });
+    const user = userEvent.setup();
+    renderWithMantine(<ControlledToolsScreen serverId="demo" />);
+    await user.click(screen.getByText("gamma"));
+    expect(screen.getByLabelText(/mode/i)).toHaveValue("slow");
+    expect(
+      screen.getByRole("textbox", { name: "Tool call metadata JSON" }),
+    ).toHaveValue('{"tenant":"acme"}');
+  });
+
+  it("does not restore another server's remembered inputs", async () => {
+    saveToolInput("demo", "gamma", {
+      formValues: { mode: "slow" },
+      metaText: "",
+    });
+    const user = userEvent.setup();
+    renderWithMantine(<ControlledToolsScreen serverId="other" />);
+    await user.click(screen.getByText("gamma"));
+    expect(screen.getByLabelText(/mode/i)).toHaveValue("fast");
+  });
+
+  it("keeps working without a server to scope storage by", async () => {
+    const user = userEvent.setup();
+    renderWithMantine(<ControlledToolsScreen />);
+    await user.click(screen.getByText("gamma"));
+    const field = screen.getByLabelText(/mode/i);
+    await user.clear(field);
+    await user.type(field, "slow");
+    expect(field).toHaveValue("slow");
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it("forgets the remembered inputs when Reset inputs is clicked", async () => {
+    saveToolInput("demo", "gamma", {
+      formValues: { mode: "slow" },
+      metaText: '{"tenant":"acme"}',
+    });
+    const user = userEvent.setup();
+    renderWithMantine(<ControlledToolsScreen serverId="demo" />);
+    await user.click(screen.getByText("gamma"));
+    await user.click(screen.getByRole("button", { name: "Reset inputs" }));
+    // Back to the schema default, with nothing left in storage to restore.
+    expect(screen.getByLabelText(/mode/i)).toHaveValue("fast");
+    expect(
+      screen.getByRole("textbox", { name: "Tool call metadata JSON" }),
+    ).toHaveValue("");
+    expect(loadToolInput("demo", "gamma")).toBeUndefined();
+  });
+
+  it("resets the form to defaults without a server id", async () => {
+    const user = userEvent.setup();
+    renderWithMantine(<ControlledToolsScreen />);
+    await user.click(screen.getByText("gamma"));
+    const field = screen.getByLabelText(/mode/i);
+    await user.clear(field);
+    await user.type(field, "slow");
+    await user.click(screen.getByRole("button", { name: "Reset inputs" }));
+    expect(screen.getByLabelText(/mode/i)).toHaveValue("fast");
   });
 
   it("renders excluded tools in the sidebar with the reason (#1632)", () => {

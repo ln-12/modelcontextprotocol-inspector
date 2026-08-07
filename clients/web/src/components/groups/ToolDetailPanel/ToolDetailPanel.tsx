@@ -60,6 +60,12 @@ export interface ToolDetailPanelProps {
   metaText: string;
   onMetaTextChange: (value: string) => void;
   /**
+   * Discard this tool's inputs (including the remembered ones) and reseed the
+   * form from its schema defaults. Optional: the control is hidden when no
+   * handler is supplied, so the panel can be rendered read-only.
+   */
+  onResetInputs?: () => void;
+  /**
    * Receives the effective run-as-task decision for this execution, plus the
    * parsed `_meta` (`undefined` when the editor is empty). Only called when the
    * editor holds valid JSON — Execute is disabled otherwise.
@@ -142,6 +148,14 @@ const DescriptionText = Text.withProps({
 const CancelButton = Button.withProps({
   variant: "subtle",
   color: "red",
+});
+
+// Discards the tool's remembered arguments and `_meta`. Subtle and gray so it
+// reads as an escape hatch beside the primary Execute action.
+const ResetButton = Button.withProps({
+  variant: "subtle",
+  color: "gray",
+  size: "md",
 });
 
 // Left-aligned row hosting the "Run as task" toggle, above the execute footer.
@@ -261,6 +275,7 @@ export function ToolDetailPanel({
   onFormChange,
   metaText,
   onMetaTextChange,
+  onResetInputs,
   onExecute,
   onCancel,
 }: ToolDetailPanelProps) {
@@ -450,6 +465,11 @@ export function ToolDetailPanel({
           Execute Tool
         </Button>
         {isExecuting && <CancelButton onClick={onCancel}>Cancel</CancelButton>}
+        {onResetInputs && (
+          <ResetButton onClick={onResetInputs} disabled={isExecuting}>
+            Reset inputs
+          </ResetButton>
+        )}
       </FooterRow>
     </PanelStack>
   );
