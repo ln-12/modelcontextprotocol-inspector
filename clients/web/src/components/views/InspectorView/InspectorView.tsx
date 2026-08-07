@@ -1355,6 +1355,7 @@ export function InspectorView({
                 excludedTools={excludedTools}
                 callState={toolCallState}
                 ui={toolsUi}
+                serverId={activeServer}
                 listChanged={toolsListChanged}
                 serverSupportsTaskToolCalls={serverSupportsTaskToolCalls}
                 modernTasks={

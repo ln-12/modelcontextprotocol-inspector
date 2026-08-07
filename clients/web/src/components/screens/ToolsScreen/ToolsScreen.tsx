@@ -15,7 +15,17 @@ import {
 import { ToolResultPanel } from "../../groups/ToolResultPanel/ToolResultPanel";
 import { ToolCallErrorPanel } from "../../groups/ToolResultPanel/ToolCallErrorPanel";
 import { resultHasResourceLinks } from "../../groups/ToolResultPanel/toolResultUtils";
-import { collectSchemaDefaults, toFormSchema } from "../../../utils/jsonUtils";
+import {
+  collectSchemaDefaults,
+  toFormSchema,
+  type InspectorFormSchema,
+} from "../../../utils/jsonUtils";
+import {
+  clearToolInput,
+  loadToolInput,
+  mergeStoredFormValues,
+  saveToolInput,
+} from "../../../lib/toolInputStore";
 
 export interface ToolCallState {
   status: "idle" | "pending" | "ok" | "error";
@@ -38,8 +48,9 @@ export interface ToolsUiState {
   selectedToolName?: string;
   formValues: Record<string, unknown>;
   /**
-   * Raw text of the per-call `_meta` editor, cleared when a different tool is
-   * selected (like `formValues`) since metadata is usually tool-specific.
+   * Raw text of the per-call `_meta` editor. Re-seeded when a different tool is
+   * selected (like `formValues`) since metadata is tool-specific — from that
+   * tool's remembered input if there is one, otherwise empty.
    * Optional: an OAuth-resume snapshot taken before this field existed restores
    * without it.
    */
@@ -60,6 +71,12 @@ export interface ToolsScreenProps {
   excludedTools?: ExcludedTool[];
   callState?: ToolCallState;
   ui: ToolsUiState;
+  /**
+   * Active server id, used to scope the remembered per-tool inputs in
+   * localStorage. Omitted (no server selected) means nothing is read or
+   * written — the form still works, it just doesn't survive a reload.
+   */
+  serverId?: string;
   listChanged: boolean;
   /** Whether the connected server advertises task-augmented tool calls. */
   serverSupportsTaskToolCalls: boolean;
@@ -151,11 +168,19 @@ const EmptyState = Text.withProps({
   py: "xl",
 });
 
+// The tool's input schema narrowed to what the form renderer reads.
+function formSchemaOf(tool: Tool): InspectorFormSchema {
+  /* v8 ignore next -- unreachable: `Tool["inputSchema"]` is a required object,
+     so the narrowing never returns null */
+  return toFormSchema(tool.inputSchema) ?? {};
+}
+
 export function ToolsScreen({
   tools,
   excludedTools,
   callState,
   ui,
+  serverId,
   listChanged,
   serverSupportsTaskToolCalls,
   modernTasks = false,
@@ -173,24 +198,59 @@ export function ToolsScreen({
     : undefined;
   const isExecuting = callState?.status === "pending";
 
+  // Write-through to localStorage on every edit, so the inputs outlive a server
+  // restart, a reconnect, and a page reload. No-op without a server to scope by.
+  const rememberInput = (
+    toolName: string,
+    formValues: Record<string, unknown>,
+    metaText: string,
+  ) => {
+    if (serverId === undefined) return;
+    saveToolInput(serverId, toolName, { formValues, metaText });
+  };
+
   const handleSelectTool = (name: string) => {
     // Seed the form with the tool's schema defaults so default-only fields the
     // user never edits are still sent on execute (the form shows defaults via
-    // resolveValue, but onChange only writes edited fields).
+    // resolveValue, but onChange only writes edited fields), then lay any
+    // remembered inputs for this tool over the top.
     const tool = tools.find((t) => t.name === name);
     // `name` always comes from the rendered tools list (ToolControls only emits
-    // names it was given), so the lookup never misses; the empty-object fallback
-    // is an unreachable defensive default.
+    // names it was given), so the lookup never misses; the empty defaults below
+    // are an unreachable defensive fallback.
     let nextFormValues: Record<string, unknown> = {};
+    let nextMetaText = "";
     /* v8 ignore next -- unreachable: onSelectTool always names a tool in the list */
-    if (tool)
-      nextFormValues = collectSchemaDefaults(
-        toFormSchema(tool.inputSchema) ?? {},
-      );
+    if (tool) {
+      const schema = formSchemaOf(tool);
+      nextFormValues = collectSchemaDefaults(schema);
+      const stored =
+        serverId === undefined ? undefined : loadToolInput(serverId, name);
+      if (stored) {
+        nextFormValues = mergeStoredFormValues(
+          nextFormValues,
+          stored.formValues,
+          schema,
+        );
+        nextMetaText = stored.metaText;
+      }
+    }
     onUiChange({
       ...ui,
       selectedToolName: name,
       formValues: nextFormValues,
+      metaText: nextMetaText,
+    });
+  };
+
+  // Discard what was remembered for the selected tool and go back to the
+  // schema's defaults — without this, a stale saved value can only be undone by
+  // editing every field it touched.
+  const handleResetInputs = (tool: Tool) => {
+    if (serverId !== undefined) clearToolInput(serverId, tool.name);
+    onUiChange({
+      ...ui,
+      formValues: collectSchemaDefaults(formSchemaOf(tool)),
       metaText: "",
     });
   };
@@ -263,13 +323,16 @@ export function ToolsScreen({
               onRunAsTaskChange={(value) =>
                 onUiChange({ ...ui, runAsTask: value })
               }
-              onFormChange={(values) =>
-                onUiChange({ ...ui, formValues: values })
-              }
+              onFormChange={(values) => {
+                rememberInput(selectedTool.name, values, metaText);
+                onUiChange({ ...ui, formValues: values });
+              }}
               metaText={metaText}
-              onMetaTextChange={(value) =>
-                onUiChange({ ...ui, metaText: value })
-              }
+              onMetaTextChange={(value) => {
+                rememberInput(selectedTool.name, formValues, value);
+                onUiChange({ ...ui, metaText: value });
+              }}
+              onResetInputs={() => handleResetInputs(selectedTool)}
               onExecute={(runAsTask, meta) =>
                 onCallTool(selectedTool.name, formValues, runAsTask, meta)
               }

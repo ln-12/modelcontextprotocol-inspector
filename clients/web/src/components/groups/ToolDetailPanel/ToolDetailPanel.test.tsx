@@ -651,4 +651,41 @@ describe("ToolDetailPanel", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  describe("reset inputs", () => {
+    it("hides the control when no handler is supplied", () => {
+      renderWithMantine(<ToolDetailPanel {...baseProps} tool={simpleTool} />);
+      expect(
+        screen.queryByRole("button", { name: "Reset inputs" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("invokes the handler when clicked", async () => {
+      const user = userEvent.setup();
+      const onResetInputs = vi.fn();
+      renderWithMantine(
+        <ToolDetailPanel
+          {...baseProps}
+          tool={simpleTool}
+          onResetInputs={onResetInputs}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: "Reset inputs" }));
+      expect(onResetInputs).toHaveBeenCalledTimes(1);
+    });
+
+    it("is disabled while a call is in flight", () => {
+      renderWithMantine(
+        <ToolDetailPanel
+          {...baseProps}
+          tool={simpleTool}
+          isExecuting
+          onResetInputs={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Reset inputs" }),
+      ).toBeDisabled();
+    });
+  });
 });
