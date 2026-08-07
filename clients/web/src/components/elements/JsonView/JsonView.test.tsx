@@ -48,10 +48,7 @@ describe("JsonView", () => {
 
   it("starts depth-2 objects collapsed", () => {
     renderWithMantine(
-      <JsonView
-        data={{ nested: { inner: { deep: 1 } } }}
-        copyable={false}
-      />,
+      <JsonView data={{ nested: { inner: { deep: 1 } } }} copyable={false} />,
     );
     expect(screen.getByText("nested:")).toBeInTheDocument();
     expect(screen.getByText("inner:")).toBeInTheDocument();
@@ -62,10 +59,7 @@ describe("JsonView", () => {
   it("expands a depth-2 object when its row is clicked", async () => {
     const user = userEvent.setup();
     renderWithMantine(
-      <JsonView
-        data={{ nested: { inner: { deep: 1 } } }}
-        copyable={false}
-      />,
+      <JsonView data={{ nested: { inner: { deep: 1 } } }} copyable={false} />,
     );
     await user.click(screen.getByRole("button", { name: "Expand inner" }));
     expect(screen.getByText("deep:")).toBeInTheDocument();

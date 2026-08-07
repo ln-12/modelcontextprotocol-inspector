@@ -207,8 +207,10 @@ export function ServerCard({
 
   // Success mirror of the errored scroll (#1682): on the →connected transition,
   // scroll the just-connected card into view, deferred past the monitoring
-  // sidebar's open (same shared delay) so the grid reflow settles first. Edge-
-  // guarded so a re-render while still connected doesn't re-scroll.
+  // sidebar's open (same shared delay) so the grid reflow settles first — a
+  // connect no longer auto-opens the column, but a user who has it pinned still
+  // gets that slide. Edge-guarded so a re-render while still connected doesn't
+  // re-scroll.
   const wasConnectedRef = useRef(justConnected);
   useEffect(() => {
     const justBecameConnected = justConnected && !wasConnectedRef.current;

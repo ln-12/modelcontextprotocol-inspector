@@ -1594,7 +1594,7 @@ describe("InspectorView", () => {
       ).toBeNull();
     });
 
-    it("opens the monitoring sidebar when a connection is established", async () => {
+    it("does not open the monitoring sidebar when a connection is established", async () => {
       const { rerender } = renderWithMantine(
         <StatefulInspectorViewHost
           {...makeProps({
@@ -1609,11 +1609,16 @@ describe("InspectorView", () => {
         screen.queryByRole("button", { name: "Close monitoring sidebar" }),
       ).toBeNull();
 
-      // Connecting opens it (the disconnected → connected transition).
+      // Connecting leaves it closed — only the user's pin preference (or the
+      // header toggle) opens the column; the toggle appears now that there is
+      // something to monitor.
       rerender(<StatefulInspectorViewHost {...connectedHttp()} />);
       expect(
-        await screen.findByRole("button", { name: "Close monitoring sidebar" }),
+        await screen.findByRole("button", { name: "Open monitoring sidebar" }),
       ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Close monitoring sidebar" }),
+      ).toBeNull();
     });
 
     it("does not auto-open on a mount that starts already connected", () => {

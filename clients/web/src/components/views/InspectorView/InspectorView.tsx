@@ -781,14 +781,15 @@ export function InspectorView({
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const columnWidth = dragWidth ?? monitorWidth;
 
-  // Open the monitoring sidebar when a connection is established (#1616) OR when a
-  // connect *attempt* fails (#1621). Gated on the *transition into* the target
-  // status (via the ref) rather than the status itself, so it fires once on an
-  // actual connect/failure — not on every render, and not on a mount that starts
-  // already in that status (which would fight a user who closed it). On success
-  // the column surfaces the live stream; on failure it surfaces the diagnostics
-  // that explain what went wrong. The column still only *appears* when wide + a
-  // monitor tab is available (`effectivePinned`); this just sets the preference.
+  // Open the monitoring sidebar when a connect *attempt* fails (#1621), so the
+  // column surfaces the diagnostics that explain what went wrong. Gated on the
+  // *transition into* `error` (via the ref) rather than the status itself, so it
+  // fires once on an actual failure — not on every render, and not on a mount
+  // that starts already errored (which would fight a user who closed it). A
+  // *successful* connect deliberately does NOT open the column: only the user's
+  // own pin preference decides whether the live stream takes half the screen.
+  // The column still only *appears* when a monitor tab is available
+  // (`effectivePinned`); this just sets the preference.
   //
   // `"error"` is also the resting status of a *mid-session crash* of a
   // previously-connected server (per isTerminalStatus/#1490), but that is NOT a
@@ -802,11 +803,9 @@ export function InspectorView({
   useEffect(() => {
     const prev = prevStatusRef.current;
     prevStatusRef.current = connectionStatus;
-    const becameConnected =
-      connectionStatus === "connected" && prev !== "connected";
     const becameError =
       connectionStatus === "error" && prev !== "error" && prev !== "connected";
-    if (becameConnected || becameError) {
+    if (becameError) {
       setMonitorPinned(true);
     }
   }, [connectionStatus, setMonitorPinned]);

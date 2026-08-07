@@ -11,6 +11,7 @@ export const MONITOR_COLUMN_ANIM_MS = 300;
 /**
  * Delay (ms) before scrolling a just-failed or just-connected server card into
  * view — the column animation plus a small buffer for the reflow to commit.
- * The sidebar auto-opens on both transitions, so both scrolls wait for it.
+ * A failed connect auto-opens the sidebar; a successful one opens it only when
+ * the user has it pinned, so both scrolls wait out the slide either way.
  */
 export const CARD_SCROLL_DELAY_MS = MONITOR_COLUMN_ANIM_MS + 20;
