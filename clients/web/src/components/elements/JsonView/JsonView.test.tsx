@@ -30,7 +30,7 @@ describe("isHttpUrlString", () => {
 });
 
 describe("JsonView", () => {
-  it("expands the root and shows top-level keys by default", () => {
+  it("expands the root and first-level children by default", () => {
     renderWithMantine(
       <JsonView
         data={{ temperature: 65, unit: "F", nested: { city: "SF" } }}
@@ -41,31 +41,40 @@ describe("JsonView", () => {
     expect(screen.getByText("unit:")).toBeInTheDocument();
     expect(screen.getByText("65")).toBeInTheDocument();
     expect(screen.getByText('"F"')).toBeInTheDocument();
-    // Nested object starts collapsed (depth 1 >= initialExpandDepth 1).
-    expect(screen.getByText("{ … }")).toBeInTheDocument();
-    expect(screen.queryByText("city:")).not.toBeInTheDocument();
+    // First-level `nested` object is open by default (depth 1 < 2).
+    expect(screen.getByText("city:")).toBeInTheDocument();
+    expect(screen.getByText('"SF"')).toBeInTheDocument();
   });
 
-  it("expands a nested object when its row is clicked", async () => {
-    const user = userEvent.setup();
+  it("starts depth-2 objects collapsed", () => {
     renderWithMantine(
       <JsonView
-        data={{ nested: { city: "SF", unit: "F" } }}
+        data={{ nested: { inner: { deep: 1 } } }}
         copyable={false}
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Expand nested" }));
-    expect(screen.getByText("city:")).toBeInTheDocument();
-    expect(screen.getByText('"SF"')).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Collapse nested" }),
-    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("nested:")).toBeInTheDocument();
+    expect(screen.getByText("inner:")).toBeInTheDocument();
+    expect(screen.queryByText("deep:")).not.toBeInTheDocument();
+    expect(screen.getByText("{ … }")).toBeInTheDocument();
+  });
+
+  it("expands a depth-2 object when its row is clicked", async () => {
+    const user = userEvent.setup();
+    renderWithMantine(
+      <JsonView
+        data={{ nested: { inner: { deep: 1 } } }}
+        copyable={false}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Expand inner" }));
+    expect(screen.getByText("deep:")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
   });
 
   it("collapses an expanded node on a second click", async () => {
     const user = userEvent.setup();
     renderWithMantine(<JsonView data={{ a: { b: 1 } }} copyable={false} />);
-    await user.click(screen.getByRole("button", { name: "Expand a" }));
     expect(screen.getByText("b:")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Collapse a" }));
     expect(screen.queryByText("b:")).not.toBeInTheDocument();
@@ -85,22 +94,31 @@ describe("JsonView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders array items with index keys when expanded", async () => {
-    const user = userEvent.setup();
+  it("renders array items with index keys when the list is expanded by default", () => {
     renderWithMantine(
       <JsonView data={{ list: ["x", "y"] }} copyable={false} />,
     );
-    await user.click(screen.getByRole("button", { name: "Expand list" }));
     expect(screen.getByText("0:")).toBeInTheDocument();
     expect(screen.getByText("1:")).toBeInTheDocument();
     expect(screen.getByText('"x"')).toBeInTheDocument();
     expect(screen.getByText('"y"')).toBeInTheDocument();
   });
 
-  it("truncates long strings until expanded", async () => {
-    const user = userEvent.setup();
+  it("shows depth-1 long strings in full by default", () => {
     const long = "a".repeat(120);
     renderWithMantine(<JsonView data={{ note: long }} copyable={false} />);
+    expect(screen.getByText(`"${long}"`)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Expand note" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("truncates depth-2 long strings until expanded", async () => {
+    const user = userEvent.setup();
+    const long = "a".repeat(120);
+    renderWithMantine(
+      <JsonView data={{ outer: { note: long } }} copyable={false} />,
+    );
     expect(screen.getByText(/"a{100}…"/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Expand note" }));
     expect(screen.getByText(`"${long}"`)).toBeInTheDocument();
@@ -161,15 +179,15 @@ describe("JsonView", () => {
     expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
   });
 
-  it("honors initialExpandDepth so nested nodes can start open", () => {
+  it("honors a lower initialExpandDepth to collapse first-level children", () => {
     renderWithMantine(
       <JsonView
         data={{ nested: { city: "SF" } }}
-        initialExpandDepth={2}
+        initialExpandDepth={1}
         copyable={false}
       />,
     );
-    expect(screen.getByText("city:")).toBeInTheDocument();
-    expect(screen.getByText('"SF"')).toBeInTheDocument();
+    expect(screen.queryByText("city:")).not.toBeInTheDocument();
+    expect(screen.getByText("{ … }")).toBeInTheDocument();
   });
 });

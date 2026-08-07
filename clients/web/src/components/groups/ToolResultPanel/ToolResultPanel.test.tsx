@@ -101,7 +101,7 @@ describe("ToolResultPanel", () => {
     expect(screen.getByText("city:")).toBeInTheDocument();
   });
 
-  it("lets nested structuredContent nodes expand and collapse", async () => {
+  it("lets nested structuredContent nodes collapse and re-expand", async () => {
     const user = userEvent.setup();
     renderWithMantine(
       <ToolResultPanel
@@ -116,10 +116,11 @@ describe("ToolResultPanel", () => {
       />,
     );
     expect(screen.getByText("temperature:")).toBeInTheDocument();
+    expect(screen.getByText("city:")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Collapse location" }));
     expect(screen.queryByText("city:")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Expand location" }));
     expect(screen.getByText("city:")).toBeInTheDocument();
-    expect(screen.getByText('"SF"')).toBeInTheDocument();
   });
 
   it("does not show structuredContent on an error result", () => {

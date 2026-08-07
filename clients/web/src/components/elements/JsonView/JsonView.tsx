@@ -15,9 +15,9 @@ export interface JsonViewProps {
   /** Any JSON-serializable value to render as an expandable tree. */
   data: unknown;
   /**
-   * Nodes at depth `< initialExpandDepth` start open. Depth 0 is the root, so
-   * the default of `1` shows the top-level keys with nested objects/arrays
-   * collapsed.
+   * Nodes at depth `< initialExpandDepth` start open. Depth 0 is the root and
+   * depth 1 its direct children, so the default of `2` expands both; deeper
+   * nesting starts collapsed.
    */
   initialExpandDepth?: number;
   /** Optional root label (e.g. a property name when embedding a subtree). */
@@ -362,7 +362,7 @@ function JsonNode({ data, name, depth, initialExpandDepth }: JsonNodeProps) {
  */
 export function JsonView({
   data,
-  initialExpandDepth = 1,
+  initialExpandDepth = 2,
   rootName,
   copyable = true,
 }: JsonViewProps) {
