@@ -26,6 +26,7 @@ import { toRecord } from "@inspector/core/json/jsonUtils.js";
 import { getServerType } from "@inspector/core/mcp/config.js";
 import type {
   InspectorClientEventMap,
+  JsonObject,
   JsonValue,
 } from "@inspector/core/mcp/index.js";
 import type { TypedEvent } from "@inspector/core/mcp/inspectorClientEventTarget.js";
@@ -2983,6 +2984,7 @@ function App() {
       name: string,
       args: Record<string, unknown>,
       runAsTask?: boolean,
+      meta?: JsonObject,
     ) => {
       if (!inspectorClient) return;
       const tool = tools.find((t: Tool) => t.name === name);
@@ -3019,17 +3021,23 @@ function App() {
         // `Record<string, JsonValue>` — narrow at the boundary instead of
         // claiming the object is empty (which the previous `as Record<string,
         // never>` cast did, misleadingly).
+        // The Tools tab's `_meta` editor is per-call, so it goes in as
+        // tool-specific metadata: it wins over the server-wide `defaultMetadata`
+        // the client folds in. Both call paths get it — a task-augmented call
+        // carries the same `_meta` as a plain one.
         const invocation = asTask
           ? await inspectorClient.callToolStream(
               tool,
               args as Record<string, JsonValue>,
               undefined,
-              undefined,
+              meta,
               { ttl: activeServer?.settings?.taskTtl || DEFAULT_TASK_TTL_MS },
             )
           : await inspectorClient.callTool(
               tool,
               args as Record<string, JsonValue>,
+              undefined,
+              meta,
             );
         setToolCallState({
           status: invocation.success ? "ok" : "error",
@@ -4453,8 +4461,8 @@ function App() {
             (inspectorClient?.isTasksExtensionNegotiated() ?? false)
           }
           onToolsUiChange={onToolsUiChange}
-          onCallTool={(name, args, runAsTask) => {
-            void onCallTool(name, args, runAsTask);
+          onCallTool={(name, args, runAsTask, meta) => {
+            void onCallTool(name, args, runAsTask, meta);
           }}
           onCancelToolCall={onCancelToolCall}
           onClearToolResult={onClearToolResult}

@@ -165,6 +165,7 @@ import { AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/
 import { validateToolOutput } from "./toolOutputValidation.js";
 import { TasksListChangedNotificationSchema } from "./taskNotificationSchemas.js";
 import {
+  type JsonObject,
   type JsonValue,
   convertToolParameters,
   convertPromptArguments,
@@ -312,6 +313,21 @@ function notificationMethodFromSchema(schema: unknown): string | undefined {
 }
 
 /**
+ * Read a caller-supplied `progressToken` out of a request's `_meta`. Only the
+ * two spec-legal shapes count (`ProgressToken` is `string | number`); anything
+ * else a user typed into the Tools tab's `_meta` editor is passed to the server
+ * untouched but not used for progress correlation.
+ */
+function progressTokenFromMeta(
+  meta: JsonObject | undefined,
+): ProgressToken | undefined {
+  const token = meta?.progressToken;
+  return typeof token === "string" || typeof token === "number"
+    ? token
+    : undefined;
+}
+
+/**
  * The descriptor for a single tools/call, threaded through the retry loop and
  * each attempt. Bundled into one object so `callToolWithRetries`/`attemptToolCall`
  * don't take a long, transposition-prone positional parameter list.
@@ -319,8 +335,8 @@ function notificationMethodFromSchema(schema: unknown): string | undefined {
 interface ToolCallRequest {
   tool: Tool;
   args: Record<string, JsonValue>;
-  generalMetadata?: Record<string, string>;
-  toolSpecificMetadata?: Record<string, string>;
+  generalMetadata?: JsonObject;
+  toolSpecificMetadata?: JsonObject;
   taskOptions?: { ttl?: number };
   options?: { skipOutputValidation?: boolean };
 }
@@ -925,6 +941,25 @@ export class InspectorClient extends InspectorClientEventTarget {
     const merged = {
       ...(defaults ?? {}),
       ...(logMeta ?? {}),
+      ...(callMetadata ?? {}),
+    };
+    return Object.keys(merged).length > 0 ? merged : undefined;
+  }
+
+  /**
+   * {@link mergeMeta} for the `tools/call` paths, whose per-call keys may carry
+   * **any** JSON value (the Tools tab's `_meta` editor, the CLI's
+   * `--tool-metadata`), not just strings. `_meta` is an open object in the spec,
+   * so a nested object/array/number reaches the wire as itself rather than as a
+   * stringified approximation of itself.
+   *
+   * The always-on layers (`defaultMetadata` + the modern log level) stay
+   * string-valued and are still produced by `mergeMeta`, so their layering is
+   * defined once; only the per-call keys widen — and they win, as they do there.
+   */
+  private mergeToolCallMeta(callMetadata?: JsonObject): JsonObject | undefined {
+    const merged: JsonObject = {
+      ...(this.mergeMeta() ?? {}),
       ...(callMetadata ?? {}),
     };
     return Object.keys(merged).length > 0 ? merged : undefined;
@@ -3149,8 +3184,8 @@ export class InspectorClient extends InspectorClientEventTarget {
   async callTool(
     tool: Tool,
     args: Record<string, JsonValue>,
-    generalMetadata?: Record<string, string>,
-    toolSpecificMetadata?: Record<string, string>,
+    generalMetadata?: JsonObject,
+    toolSpecificMetadata?: JsonObject,
     taskOptions?: { ttl?: number },
     options?: { skipOutputValidation?: boolean },
   ): Promise<ToolCallInvocation> {
@@ -3378,7 +3413,7 @@ export class InspectorClient extends InspectorClientEventTarget {
     const convertedArgs = this.convertStringToolArgs(tool, args);
 
     // Merge general metadata with tool-specific metadata; tool-specific wins.
-    const callMetadata: Record<string, string> | undefined =
+    const callMetadata: JsonObject | undefined =
       generalMetadata || toolSpecificMetadata
         ? { ...(generalMetadata || {}), ...(toolSpecificMetadata || {}) }
         : undefined;
@@ -3386,12 +3421,12 @@ export class InspectorClient extends InspectorClientEventTarget {
     const timestamp = new Date();
     // Fold in this client's defaultMetadata so server-wide _meta reaches
     // the wire even when the caller passed nothing.
-    const metadata = this.mergeMeta(callMetadata);
+    const metadata = this.mergeToolCallMeta(callMetadata);
 
     const callParams: {
       name: string;
       arguments: Record<string, JsonValue>;
-      _meta?: Record<string, string>;
+      _meta?: JsonObject;
       task?: { ttl: number };
     } = {
       name: tool.name,
@@ -3403,7 +3438,7 @@ export class InspectorClient extends InspectorClientEventTarget {
     }
 
     const requestOptions = this.getRequestOptions(
-      metadata?.progressToken,
+      progressTokenFromMeta(metadata),
       signal,
     );
     this.applyMirroredParamHeaders(tool, convertedArgs, requestOptions);
@@ -3493,15 +3528,15 @@ export class InspectorClient extends InspectorClientEventTarget {
   private dispatchFailedToolCall(
     tool: Tool,
     args: Record<string, JsonValue>,
-    generalMetadata: Record<string, string> | undefined,
-    toolSpecificMetadata: Record<string, string> | undefined,
+    generalMetadata: JsonObject | undefined,
+    toolSpecificMetadata: JsonObject | undefined,
     errorMessage: string,
   ): void {
-    const callMetadata: Record<string, string> | undefined =
+    const callMetadata: JsonObject | undefined =
       generalMetadata || toolSpecificMetadata
         ? { ...(generalMetadata || {}), ...(toolSpecificMetadata || {}) }
         : undefined;
-    const metadata = this.mergeMeta(callMetadata);
+    const metadata = this.mergeToolCallMeta(callMetadata);
     this.dispatchTypedEvent("toolCallResultChange", {
       toolName: tool.name,
       params: args,
@@ -3981,8 +4016,8 @@ export class InspectorClient extends InspectorClientEventTarget {
   async callToolStream(
     tool: Tool,
     args: Record<string, JsonValue>,
-    generalMetadata?: Record<string, string>,
-    toolSpecificMetadata?: Record<string, string>,
+    generalMetadata?: JsonObject,
+    toolSpecificMetadata?: JsonObject,
     taskOptions?: { ttl?: number },
   ): Promise<ToolCallInvocation> {
     if (!this.client) {
@@ -3992,13 +4027,13 @@ export class InspectorClient extends InspectorClientEventTarget {
       const convertedArgs = this.convertStringToolArgs(tool, args);
 
       // Merge general metadata with tool-specific metadata; tool-specific wins.
-      const callMetadata: Record<string, string> | undefined =
+      const callMetadata: JsonObject | undefined =
         generalMetadata || toolSpecificMetadata
           ? { ...(generalMetadata || {}), ...(toolSpecificMetadata || {}) }
           : undefined;
 
       const timestamp = new Date();
-      const metadata = this.mergeMeta(callMetadata);
+      const metadata = this.mergeToolCallMeta(callMetadata);
 
       // Call the streaming API
       const streamParams: Record<string, unknown> = {
@@ -4028,7 +4063,9 @@ export class InspectorClient extends InspectorClientEventTarget {
       // attach one here either — doing so would request a progress token (and
       // emit requestorTaskProgress) for task calls only, bypassing the toggle
       // that governs every other call path.
-      const requestOptions = this.getRequestOptions(metadata?.progressToken);
+      const requestOptions = this.getRequestOptions(
+        progressTokenFromMeta(metadata),
+      );
       // The task-augmented `tools/call` needs the same SEP-2243 mirroring as the
       // plain one — a strict modern server rejects it with -32020 otherwise.
       this.applyMirroredParamHeaders(tool, convertedArgs, requestOptions);
@@ -4189,13 +4226,13 @@ export class InspectorClient extends InspectorClientEventTarget {
       return invocation;
     } catch (error) {
       // Merge general metadata with tool-specific metadata for error case
-      const callMetadata: Record<string, string> | undefined =
+      const callMetadata: JsonObject | undefined =
         generalMetadata || toolSpecificMetadata
           ? { ...(generalMetadata || {}), ...(toolSpecificMetadata || {}) }
           : undefined;
 
       const timestamp = new Date();
-      const metadata = this.mergeMeta(callMetadata);
+      const metadata = this.mergeToolCallMeta(callMetadata);
 
       this.dispatchTypedEvent("toolCallResultChange", {
         toolName: tool.name,

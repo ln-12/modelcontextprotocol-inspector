@@ -23,7 +23,7 @@ import type { Client } from "@modelcontextprotocol/client";
 import type { OAuthClientProvider } from "@modelcontextprotocol/client";
 import type { Transport } from "@modelcontextprotocol/client";
 import type { InspectorLogger } from "../logging/logger.js";
-import type { JsonValue } from "../json/jsonUtils.js";
+import type { JsonObject, JsonValue } from "../json/jsonUtils.js";
 import type {
   ClientConfig,
   EnterpriseManagedAuthIdpConfig,
@@ -376,7 +376,9 @@ export interface ToolCallInvocation {
   timestamp: Date;
   success: boolean;
   error?: string;
-  metadata?: Record<string, string>;
+  /** The `_meta` sent with the call. Values may be any JSON — `_meta` is an open
+   * object in the spec, and the Tools tab lets the user author one directly. */
+  metadata?: JsonObject;
   /**
    * Set only on the `skipOutputValidation` path: present when the (delivered)
    * result's structuredContent does NOT match the tool's declared outputSchema.

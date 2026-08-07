@@ -403,6 +403,7 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
       name: string,
       args: Record<string, unknown>,
       runAsTask?: boolean,
+      meta?: Record<string, unknown>,
     ) => void;
     onGetPrompt: (name: string, args: Record<string, string>) => void;
     onReadResource: (uri: string) => void;
@@ -524,6 +525,20 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
       <button onClick={() => props.onCallTool("get_acts", {})}>call</button>
       <button onClick={() => props.onCallTool("get_acts", {}, true)}>
         call-as-task
+      </button>
+      <button
+        onClick={() =>
+          props.onCallTool("get_acts", {}, false, { tenant: { id: 7 } })
+        }
+      >
+        call-with-meta
+      </button>
+      <button
+        onClick={() =>
+          props.onCallTool("get_acts", {}, true, { tenant: { id: 7 } })
+        }
+      >
+        call-as-task-with-meta
       </button>
       <button onClick={() => props.onCancelTask("task-1")}>cancel-task</button>
       <button onClick={() => props.onCancelToolCall()}>cancel-tool-call</button>
@@ -1193,6 +1208,46 @@ describe("App task wiring", () => {
     };
     await waitFor(() => expect(client.callTool).toHaveBeenCalledTimes(1));
     expect(client.callToolStream).not.toHaveBeenCalled();
+  });
+
+  it("sends the Tools tab's per-call metadata as tool-specific `_meta`", async () => {
+    const user = userEvent.setup();
+    renderWithMantine(<App />);
+    await user.click(screen.getByText("connect"));
+    await waitFor(() => expect(clientInstances).toHaveLength(1));
+
+    await user.click(screen.getByText("call-with-meta"));
+
+    const client = clientInstances[0] as unknown as {
+      callTool: ReturnType<typeof vi.fn>;
+    };
+    await waitFor(() => expect(client.callTool).toHaveBeenCalledTimes(1));
+    // 3rd arg is general metadata (unused by the web client), 4th is the
+    // tool-specific metadata the editor authored — it wins over the server's
+    // `defaultMetadata` inside the client.
+    expect(client.callTool.mock.calls[0][2]).toBeUndefined();
+    expect(client.callTool.mock.calls[0][3]).toEqual({ tenant: { id: 7 } });
+  });
+
+  it("sends the per-call metadata on the task-augmented path too", async () => {
+    vi.mocked(useInspectorClient).mockReturnValue({
+      ...DEFAULT_USE_INSPECTOR_CLIENT,
+      capabilities: { tasks: { requests: { tools: { call: {} } } } },
+    });
+    const user = userEvent.setup();
+    renderWithMantine(<App />);
+    await user.click(screen.getByText("connect"));
+    await waitFor(() => expect(clientInstances).toHaveLength(1));
+
+    await user.click(screen.getByText("call-as-task-with-meta"));
+
+    const client = clientInstances[0] as unknown as {
+      callToolStream: ReturnType<typeof vi.fn>;
+    };
+    await waitFor(() => expect(client.callToolStream).toHaveBeenCalledTimes(1));
+    expect(client.callToolStream.mock.calls[0][3]).toEqual({
+      tenant: { id: 7 },
+    });
   });
 
   it("surfaces a cancel failure as a red toast", async () => {

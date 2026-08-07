@@ -11,7 +11,9 @@ const meta: Meta<typeof ToolDetailPanel> = {
     onExecute: fn(),
     onCancel: fn(),
     onRunAsTaskChange: fn(),
+    onMetaTextChange: fn(),
     formValues: {},
+    metaText: "",
     isExecuting: false,
     serverSupportsTaskToolCalls: false,
     runAsTask: false,
@@ -243,5 +245,30 @@ export const RunAsTaskRequired: Story = {
   args: {
     tool: requiredTaskTool,
     serverSupportsTaskToolCalls: true,
+  },
+};
+
+// Per-call `_meta`: a non-empty editor mounts expanded, showing the nested JSON
+// the wire carries verbatim.
+export const WithRequestMetadata: Story = {
+  args: {
+    tool: sendMessageTool,
+    metaText:
+      '{\n  "acme.dev/trace": {\n    "id": 7,\n    "sampled": true\n  }\n}',
+  },
+};
+
+// Invalid JSON names the problem and blocks Execute rather than failing at the
+// server.
+export const WithInvalidRequestMetadata: Story = {
+  args: {
+    tool: sendMessageTool,
+    metaText: '{ "unclosed": ',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Execute Tool" }),
+    ).toBeDisabled();
   },
 };

@@ -6,6 +6,7 @@ import {
   Divider,
   Group,
   Image,
+  JsonInput,
   ScrollArea,
   Stack,
   Switch,
@@ -18,8 +19,10 @@ import type {
   Tool,
   ToolAnnotations,
 } from "@modelcontextprotocol/client";
+import type { JsonObject } from "@inspector/core/json/jsonUtils.js";
 import { resolveDisplayLabel } from "../../../utils/toolUtils";
 import { toFormSchema } from "../../../utils/jsonUtils";
+import { parseToolCallMeta } from "../../../utils/toolCallMeta";
 import { getMirroredHeaderParams } from "@inspector/core/json/xMcpHeader.js";
 import { AnnotationBadge } from "../../elements/AnnotationBadge/AnnotationBadge";
 import { ProgressDisplay } from "../../elements/ProgressDisplay/ProgressDisplay";
@@ -49,8 +52,19 @@ export interface ToolDetailPanelProps {
   runAsTask: boolean;
   onRunAsTaskChange: (value: boolean) => void;
   onFormChange: (values: Record<string, unknown>) => void;
-  /** Receives the effective run-as-task decision for this execution. */
-  onExecute: (runAsTask: boolean) => void;
+  /**
+   * Raw text of the per-call `_meta` editor. Kept as text (not a parsed object)
+   * so a half-typed value survives a re-render and the user can be shown where
+   * the JSON is wrong instead of having their input discarded.
+   */
+  metaText: string;
+  onMetaTextChange: (value: string) => void;
+  /**
+   * Receives the effective run-as-task decision for this execution, plus the
+   * parsed `_meta` (`undefined` when the editor is empty). Only called when the
+   * editor holds valid JSON — Execute is disabled otherwise.
+   */
+  onExecute: (runAsTask: boolean, meta: JsonObject | undefined) => void;
   onCancel: () => void;
 }
 
@@ -169,6 +183,55 @@ const HeaderParamArrow = Text.withProps({
   c: "var(--inspector-text-secondary)",
 });
 
+// Per-call `_meta` editor (collapsed by default — it's an advanced field, and
+// keeping it shut leaves the arguments form and Execute in view).
+const MetaSection = Stack.withProps({
+  gap: "xs",
+});
+
+const MetaHeaderRow = Group.withProps({
+  gap: "xs",
+  wrap: "nowrap",
+  align: "center",
+  miw: 0,
+});
+
+// `flex: 1` pins the chevron to the right edge of the (nowrap) header row, the
+// way ToolTitle does for the description toggle.
+const MetaTitle = Text.withProps({
+  size: "sm",
+  fw: 600,
+  flex: 1,
+});
+
+// `aria-label` is set per-render since it reflects the open state.
+const MetaToggle = ActionIcon.withProps({
+  variant: "subtle",
+  color: "gray",
+  size: "sm",
+});
+
+const MetaStack = Stack.withProps({
+  gap: "xs",
+});
+
+// The placeholder deliberately shows a namespaced key with a nested value —
+// that's the shape extensions use, and the one a key/value editor couldn't
+// express. `progressToken` is a poor example: the SDK owns that key and
+// overwrites it with its own token.
+const MetaJsonInput = JsonInput.withProps({
+  "aria-label": "Tool call metadata JSON",
+  placeholder: '{\n  "io.example/trace": { "id": "abc123" }\n}',
+  autosize: true,
+  minRows: 3,
+  formatOnBlur: true,
+});
+
+const MetaNote = Text.withProps({
+  size: "xs",
+  c: "var(--inspector-text-secondary)",
+});
+
 // A tool's per-tool task support, defaulting to "forbidden" (the SDK default
 // when `execution` is absent) so tools that say nothing can't be run as tasks.
 type TaskSupport = "forbidden" | "optional" | "required";
@@ -196,6 +259,8 @@ export function ToolDetailPanel({
   runAsTask,
   onRunAsTaskChange,
   onFormChange,
+  metaText,
+  onMetaTextChange,
   onExecute,
   onCancel,
 }: ToolDetailPanelProps) {
@@ -213,14 +278,27 @@ export function ToolDetailPanel({
   // a prior tool's hidden state doesn't carry over — mirrors how ToolsScreen
   // clears formValues on change.
   const [descriptionOpen, setDescriptionOpen] = useState(true);
+  // The `_meta` editor starts open only when it already holds something (a
+  // session restored mid-flow), so it stays out of the way otherwise.
+  const [metaOpen, setMetaOpen] = useState(() => metaText.trim() !== "");
   const [prevToolName, setPrevToolName] = useState(name);
   if (name !== prevToolName) {
     setPrevToolName(name);
     setDescriptionOpen(true);
+    setMetaOpen(metaText.trim() !== "");
   }
   // Ties the toggle to the Collapse region so assistive tech announces it as a
   // single expandable control (aria-expanded + aria-controls).
   const descriptionRegionId = useId();
+  const metaRegionId = useId();
+
+  // Parsed on every render rather than on submit, so an invalid `_meta` blocks
+  // Execute and names the problem instead of failing the call at the server.
+  const metaResult = parseToolCallMeta(metaText);
+  const metaError = metaResult.ok ? undefined : metaResult.error;
+  // Resolved during render (not in the click handler) so both arms are reached
+  // by rendering; a disabled Execute would never run the invalid one.
+  const meta = metaResult.ok ? metaResult.meta : undefined;
 
   // Show the toggle when the server supports task tool calls and either the
   // connection is modern (task creation is server-directed there, so any tool
@@ -319,6 +397,35 @@ export function ToolDetailPanel({
             disabled={isExecuting}
           />
 
+          <MetaSection>
+            <MetaHeaderRow>
+              <MetaTitle>Request metadata (_meta)</MetaTitle>
+              <MetaToggle
+                aria-label={metaOpen ? "Hide metadata" : "Show metadata"}
+                aria-expanded={metaOpen}
+                aria-controls={metaRegionId}
+                onClick={() => setMetaOpen((open) => !open)}
+              >
+                {metaOpen ? <RiArrowDownSLine /> : <RiArrowRightSLine />}
+              </MetaToggle>
+            </MetaHeaderRow>
+            <Collapse in={metaOpen} id={metaRegionId}>
+              <MetaStack>
+                <MetaJsonInput
+                  value={metaText}
+                  onChange={onMetaTextChange}
+                  error={metaError}
+                  disabled={isExecuting}
+                />
+                <MetaNote>
+                  Any JSON object, sent as this call&apos;s <Code>_meta</Code>.
+                  Keys set here win over the server&apos;s default request
+                  metadata.
+                </MetaNote>
+              </MetaStack>
+            </Collapse>
+          </MetaSection>
+
           {progress && <ProgressDisplay params={progress} />}
         </BodyStack>
       </BodyScroll>
@@ -336,8 +443,8 @@ export function ToolDetailPanel({
       <FooterRow>
         <Button
           size="md"
-          onClick={() => onExecute(effectiveRunAsTask)}
-          disabled={isExecuting}
+          onClick={() => onExecute(effectiveRunAsTask, meta)}
+          disabled={isExecuting || metaError !== undefined}
           loading={isExecuting}
         >
           Execute Tool

@@ -51,7 +51,7 @@ import type {
   ConnectionStatus,
   FetchRequestEntryBase,
 } from "@inspector/core/mcp/types.js";
-import type { JsonValue } from "@inspector/core/json/jsonUtils.js";
+import type { JsonObject, JsonValue } from "@inspector/core/json/jsonUtils.js";
 import type {
   TypedEvent,
   TaskWithOptionalCreatedAt,
@@ -1286,6 +1286,95 @@ describe("InspectorClient", () => {
         );
       expect(callToolReq).toBeDefined();
       expect(metaOf(callToolReq!).tenant).toBe("override");
+      messageLogState.destroy();
+    });
+
+    it("puts non-string call-time _meta values on the wire as JSON, not strings", async () => {
+      // `_meta` is an open object in the spec, so the Tools tab's editor can
+      // author nested shapes. They must survive to the wire unflattened — a
+      // stringified object would misrepresent what the server received.
+      client = new InspectorClient(
+        {
+          type: "stdio",
+          command: serverCommand.command,
+          args: serverCommand.args,
+        },
+        {
+          environment: { transport: createTransportNode },
+          defaultMetadata: { tenant: "acme" },
+        },
+      );
+      const messageLogState = new MessageLogState(client);
+      await client.connect();
+      const tool = await getTool(client, "echo");
+      await client.callTool(tool, { message: "hi" }, undefined, {
+        "acme.dev/trace": { id: 7, tags: ["a"], sampled: true },
+        retries: 3,
+      });
+
+      const callToolReq = messageLogState
+        .getMessages()
+        .find(
+          (m) =>
+            m.direction === "request" &&
+            (m.message as { method?: string }).method === "tools/call",
+        );
+      expect(callToolReq).toBeDefined();
+      const meta = metaOf(callToolReq!);
+      expect(meta["acme.dev/trace"]).toEqual({
+        id: 7,
+        tags: ["a"],
+        sampled: true,
+      });
+      expect(meta.retries).toBe(3);
+      // The server-wide string defaults still layer underneath.
+      expect(meta.tenant).toBe("acme");
+      messageLogState.destroy();
+    });
+
+    it("tolerates a non-string, non-number progressToken in call-time _meta", async () => {
+      // A user can type anything into the editor. `ProgressToken` is
+      // `string | number`, so an object is not usable for progress correlation
+      // — the call must still go through rather than throw, and the SDK's own
+      // injected token continues to govern the wire (see getRequestOptions).
+      client = new InspectorClient(
+        {
+          type: "stdio",
+          command: serverCommand.command,
+          args: serverCommand.args,
+        },
+        { environment: { transport: createTransportNode } },
+      );
+      const messageLogState = new MessageLogState(client);
+      await client.connect();
+      const tool = await getTool(client, "echo");
+      // A numeric token is spec-legal and correlates; an object one does not.
+      const numeric = await client.callTool(
+        tool,
+        { message: "hi" },
+        undefined,
+        {
+          progressToken: 42,
+        },
+      );
+      expect(numeric.success).toBe(true);
+
+      const invocation = await client.callTool(
+        tool,
+        { message: "hi" },
+        undefined,
+        { progressToken: { nope: true } },
+      );
+      expect(invocation.success).toBe(true);
+
+      const callToolReq = messageLogState
+        .getMessages()
+        .find(
+          (m) =>
+            m.direction === "request" &&
+            (m.message as { method?: string }).method === "tools/call",
+        );
+      expect(typeof metaOf(callToolReq!).progressToken).toBe("number");
       messageLogState.destroy();
     });
 
@@ -4125,7 +4214,7 @@ describe("InspectorClient", () => {
         timestamp: Date;
         success: boolean;
         error?: string;
-        metadata?: Record<string, string>;
+        metadata?: JsonObject;
       }> = [];
 
       client!.addEventListener(
