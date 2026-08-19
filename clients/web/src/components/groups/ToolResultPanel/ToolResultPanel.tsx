@@ -16,6 +16,7 @@ import { ContentViewer } from "../../elements/ContentViewer/ContentViewer";
 import { JsonView } from "../../elements/JsonView/JsonView";
 import { ResourceLink } from "../ResourceLink/ResourceLink";
 import {
+  resultHasMeta,
   resultHasResourceLinks,
   resultHasStructuredContent,
 } from "./toolResultUtils";
@@ -165,23 +166,24 @@ const ResourceLinksStack = Stack.withProps({
   gap: "sm",
 });
 
-// Section heading shared by "Structured Content" and (when both exist) "Content"
-// — same level as the Resource Links sub-box heading.
+// Section heading shared by "Structured Content", "Metadata (_meta)", and (when
+// any secondary section exists) "Content" — same level as the Resource Links
+// sub-box heading.
 const SectionHeader = Title.withProps({
   order: 4,
   size: "h5",
 });
 
-// Schema-validated `structuredContent` sits in a bordered box like Resource
-// Links, but sizes to its content (`flex` unset) so a Resource Links box below
-// still claims the remaining card height.
-const StructuredContentBox = Paper.withProps({
+// Schema-validated `structuredContent` and result `_meta` sit in bordered boxes
+// like Resource Links, but size to their content (`flex` unset) so a Resource
+// Links box below still claims the remaining card height.
+const JsonSectionBox = Paper.withProps({
   withBorder: true,
   radius: "md",
   p: "md",
 });
 
-const StructuredContentInner = Stack.withProps({
+const JsonSectionInner = Stack.withProps({
   gap: "sm",
 });
 
@@ -228,14 +230,14 @@ function ResourceLinksGroup({
   );
 }
 
-function StructuredContentSection({ data }: { data: unknown }) {
+function JsonSection({ title, data }: { title: string; data: unknown }) {
   return (
-    <StructuredContentBox>
-      <StructuredContentInner>
-        <SectionHeader>Structured Content</SectionHeader>
+    <JsonSectionBox>
+      <JsonSectionInner>
+        <SectionHeader>{title}</SectionHeader>
         <JsonView data={data} />
-      </StructuredContentInner>
-    </StructuredContentBox>
+      </JsonSectionInner>
+    </JsonSectionBox>
   );
 }
 
@@ -245,15 +247,16 @@ export function ToolResultPanel({
   onReadResource,
 }: ToolResultPanelProps) {
   const hasStructured = resultHasStructuredContent(result);
+  const hasMeta = resultHasMeta(result);
   const hasContentBlocks = !result.isError && result.content.length > 0;
   const segments = hasContentBlocks ? segmentContent(result.content) : [];
   // Results with a Resource Links box fill the card so the box grows to the
   // available height (and scrolls inside). Plain text/image results keep the
   // scroll-within-card body so a short result doesn't reserve empty height.
   const hasLinks = resultHasResourceLinks(result);
-  // Label the content run only when structured content is also shown, so a
-  // plain text/image result stays unlabeled (matching the prior layout).
-  const showContentLabel = hasStructured && hasContentBlocks;
+  // Label the content run only when a secondary JSON section is also shown, so
+  // a plain text/image result stays unlabeled (matching the prior layout).
+  const showContentLabel = (hasStructured || hasMeta) && hasContentBlocks;
 
   const segmentNodes = segments.map((segment) => {
     if (segment.kind === "links") {
@@ -281,20 +284,25 @@ export function ToolResultPanel({
     );
   });
 
-  // Content blocks first, then schema-validated structuredContent. The Content
-  // label is a sibling of the segments (not a wrapping Stack) so a Resource
-  // Links box below still receives `flex: 1` from FillStack.
+  // Content blocks first, then schema-validated structuredContent, then result
+  // `_meta`. The Content label is a sibling of the segments (not a wrapping
+  // Stack) so a Resource Links box below still receives `flex: 1` from
+  // FillStack.
   const bodyNodes = (
     <>
       {showContentLabel && <SectionHeader>Content</SectionHeader>}
       {hasContentBlocks && segmentNodes}
       {hasStructured && (
-        <StructuredContentSection data={result.structuredContent} />
+        <JsonSection
+          title="Structured Content"
+          data={result.structuredContent}
+        />
       )}
+      {hasMeta && <JsonSection title="Metadata (_meta)" data={result._meta} />}
     </>
   );
 
-  const isEmpty = !hasStructured && !hasContentBlocks;
+  const isEmpty = !hasStructured && !hasMeta && !hasContentBlocks;
 
   return (
     <PanelStack>

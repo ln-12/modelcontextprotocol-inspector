@@ -8,6 +8,7 @@ import {
 } from "../../../test/renderWithMantine";
 import { ToolResultPanel } from "./ToolResultPanel";
 import {
+  resultHasMeta,
   resultHasResourceLinks,
   resultHasStructuredContent,
 } from "./toolResultUtils";
@@ -37,6 +38,22 @@ const structuredWithContentResult: CallToolResult = {
     },
   ],
   structuredContent: { temperature: 65, unit: "F", city: "SF" },
+};
+
+const metaOnlyResult: CallToolResult = {
+  content: [],
+  _meta: { "acme.dev/traceId": "tr_abc", progressToken: "p-1" },
+};
+
+const fullResult: CallToolResult = {
+  content: [
+    {
+      type: "text",
+      text: "The current weather in SF is 65°F.",
+    },
+  ],
+  structuredContent: { temperature: 65, unit: "F", city: "SF" },
+  _meta: { "acme.dev/traceId": "tr_abc" },
 };
 
 describe("ToolResultPanel", () => {
@@ -137,6 +154,82 @@ describe("ToolResultPanel", () => {
     expect(screen.getByText("Tool Error")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Structured Content" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders _meta as a JSON section when present alone", () => {
+    renderWithMantine(
+      <ToolResultPanel result={metaOnlyResult} onClear={() => {}} />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Metadata (_meta)" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No results yet")).toBeNull();
+    expect(screen.getByText("acme.dev/traceId:")).toBeInTheDocument();
+    expect(screen.getByText("progressToken:")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Content" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Structured Content" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("places Metadata (_meta) below Structured Content when both exist", () => {
+    renderWithMantine(
+      <ToolResultPanel result={fullResult} onClear={() => {}} />,
+    );
+    const contentHeading = screen.getByRole("heading", { name: "Content" });
+    const structuredHeading = screen.getByRole("heading", {
+      name: "Structured Content",
+    });
+    const metaHeading = screen.getByRole("heading", {
+      name: "Metadata (_meta)",
+    });
+    expect(
+      contentHeading.compareDocumentPosition(structuredHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      structuredHeading.compareDocumentPosition(metaHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByText("city:")).toBeInTheDocument();
+    expect(screen.getByText("acme.dev/traceId:")).toBeInTheDocument();
+  });
+
+  it("labels Content when only _meta accompanies content blocks", () => {
+    renderWithMantine(
+      <ToolResultPanel
+        result={{
+          content: [{ type: "text", text: "ok" }],
+          _meta: { "acme.dev/traceId": "tr_1" },
+        }}
+        onClear={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Content" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Metadata (_meta)" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show _meta on an error result", () => {
+    renderWithMantine(
+      <ToolResultPanel
+        result={{
+          isError: true,
+          content: [{ type: "text", text: "boom" }],
+          _meta: { ignored: true },
+        }}
+        onClear={() => {}}
+      />,
+    );
+    expect(screen.getByText("Tool Error")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Metadata (_meta)" }),
     ).not.toBeInTheDocument();
   });
 
@@ -266,6 +359,29 @@ describe("ToolResultPanel", () => {
           isError: true,
           content: [{ type: "text", text: "boom" }],
           structuredContent: { ignored: true },
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe("resultHasMeta", () => {
+    it("is true when _meta is present on a success result", () => {
+      expect(resultHasMeta(metaOnlyResult)).toBe(true);
+      expect(resultHasMeta(fullResult)).toBe(true);
+    });
+
+    it("is false when _meta is absent", () => {
+      expect(resultHasMeta(okResult)).toBe(false);
+      expect(resultHasMeta(emptyResult)).toBe(false);
+      expect(resultHasMeta(structuredOnlyResult)).toBe(false);
+    });
+
+    it("is false when the result is an error, even with _meta", () => {
+      expect(
+        resultHasMeta({
+          isError: true,
+          content: [{ type: "text", text: "boom" }],
+          _meta: { ignored: true },
         }),
       ).toBe(false);
     });

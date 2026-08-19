@@ -226,3 +226,44 @@ export const StructuredContentOnly: Story = {
     },
   },
 };
+
+// Result `_meta` alone — same empty-content path as StructuredContentOnly.
+export const MetaOnly: Story = {
+  args: {
+    result: {
+      content: [],
+      _meta: {
+        "acme.dev/traceId": "tr_abc123",
+        progressToken: "p-weather-1",
+      },
+    },
+  },
+};
+
+// Content + structuredContent + `_meta`: Content, Structured Content, then
+// Metadata (_meta) in that order.
+export const WithMeta: Story = {
+  args: {
+    result: {
+      content: [
+        {
+          type: "text",
+          text: "The current weather in San Francisco is 65°F and sunny.",
+        },
+      ],
+      structuredContent: {
+        temperature: 65,
+        unit: "fahrenheit",
+        condition: "sunny",
+        location: {
+          city: "San Francisco",
+          coords: { lat: 37.77, lon: -122.42 },
+        },
+      },
+      _meta: {
+        "acme.dev/traceId": "tr_abc123",
+        "acme.dev/latencyMs": 42,
+      },
+    },
+  },
+};

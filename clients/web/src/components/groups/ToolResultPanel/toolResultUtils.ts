@@ -62,3 +62,12 @@ export function resultHasResourceLinks(result: CallToolResult): boolean {
 export function resultHasStructuredContent(result: CallToolResult): boolean {
   return !result.isError && result.structuredContent !== undefined;
 }
+
+/**
+ * Whether a result carries `_meta` that the Results panel should surface as its
+ * own section (below structured content). Errors keep the error alert only —
+ * `_meta` on an `isError` result is not shown here.
+ */
+export function resultHasMeta(result: CallToolResult): boolean {
+  return !result.isError && result._meta !== undefined;
+}

@@ -358,7 +358,7 @@ function JsonNode({ data, name, depth, initialExpandDepth }: JsonNodeProps) {
 /**
  * Interactive JSON tree: objects/arrays (and long strings) collapse and expand
  * by node. http(s) string values render as links that open in a new tab.
- * Used by the Tools Results panel for `structuredContent`.
+ * Used by the Tools Results panel for `structuredContent` and result `_meta`.
  */
 export function JsonView({
   data,
